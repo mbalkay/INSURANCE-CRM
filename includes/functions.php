@@ -115,19 +115,31 @@ function temsilci_panel_shortcode() {
             submitButton.disabled = true;
             submitButton.textContent = 'Giriş yapılıyor...';
             
-            // Create FormData
-            const formData = new FormData();
-            formData.append('action', 'insurance_crm_login');
-            formData.append('username', username);
-            formData.append('password', password);
-            formData.append('remember', remember ? '1' : '0');
-            formData.append('nonce', '<?php echo wp_create_nonce('insurance_crm_login_nonce'); ?>');
-            
-            // AJAX request
-            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                method: 'POST',
-                body: formData
+            // First get a fresh nonce, then perform login
+            fetch('<?php echo admin_url('admin-ajax.php'); ?>?action=insurance_crm_get_login_nonce&t=' + Date.now(), {
+                method: 'GET'
             })
+            .then(response => response.json())
+            .then(nonceData => {
+                if (!nonceData.success) {
+                    throw new Error('Nonce alınamadı');
+                }
+                
+                // Create FormData with fresh nonce
+                const formData = new FormData();
+                formData.append('action', 'insurance_crm_login');
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('remember', remember ? '1' : '0');
+                formData.append('nonce', nonceData.data.nonce);
+                
+                // AJAX login request
+                return fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+            })
+            .then(response => response.json())
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -162,9 +174,19 @@ add_shortcode('temsilci_panel', 'temsilci_panel_shortcode');
 add_action('wp_ajax_nopriv_insurance_crm_login', 'handle_insurance_crm_ajax_login');
 add_action('wp_ajax_insurance_crm_login', 'handle_insurance_crm_ajax_login');
 
+// AJAX nonce generator for login
+add_action('wp_ajax_nopriv_insurance_crm_get_login_nonce', 'handle_insurance_crm_get_login_nonce');
+add_action('wp_ajax_insurance_crm_get_login_nonce', 'handle_insurance_crm_get_login_nonce');
+
+function handle_insurance_crm_get_login_nonce() {
+    // Generate fresh nonce for login
+    $nonce = wp_create_nonce('insurance_crm_login_nonce');
+    wp_send_json_success(array('nonce' => $nonce));
+}
+
 function handle_insurance_crm_ajax_login() {
     // Verify nonce for security
-    if (!wp_verify_nonce($_POST['nonce'], 'insurance_crm_login_nonce')) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'insurance_crm_login_nonce')) {
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }
