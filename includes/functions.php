@@ -185,26 +185,39 @@ function handle_insurance_crm_get_login_nonce() {
 
 function handle_insurance_crm_ajax_login() {
     // Log the beginning of the function for debugging
-    error_log('AJAX Login Handler Called');
-    error_log('POST data: ' . print_r($_POST, true));
+    error_log('AJAX Login Handler Called - POST data: ' . print_r($_POST, true));
+    
+    // Check if required fields are present
+    if (!isset($_POST['username']) || !isset($_POST['password'])) {
+        error_log('AJAX Login: Missing username or password');
+        wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
+        return;
+    }
     
     // Verify nonce for security - using correct field name from form
-    if (!isset($_POST['insurance_crm_login_nonce']) || !wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
-        error_log('AJAX Login: Nonce verification failed');
-        error_log('Nonce field value: ' . ($_POST['insurance_crm_login_nonce'] ?? 'NOT SET'));
-        error_log('Nonce verification result: ' . (wp_verify_nonce($_POST['insurance_crm_login_nonce'] ?? '', 'insurance_crm_login') ? 'VALID' : 'INVALID'));
+    if (!isset($_POST['insurance_crm_login_nonce'])) {
+        error_log('AJAX Login: Nonce field missing from POST data');
+        wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız - nonce eksik.'));
+        return;
+    }
+    
+    $nonce_check = wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login');
+    if (!$nonce_check) {
+        error_log('AJAX Login: Nonce verification failed. Nonce: ' . $_POST['insurance_crm_login_nonce']);
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }
     
-    $username = sanitize_user($_POST['username']);
+    error_log('AJAX Login: Nonce verification successful');
+    
+    $username = sanitize_text_field($_POST['username']);
     $password = $_POST['password'];
     $remember = isset($_POST['remember']) ? true : false;
     
     error_log('AJAX Login: Attempting login for username: ' . $username);
     
     if (empty($username) || empty($password)) {
-        error_log('AJAX Login: Empty username or password');
+        error_log('AJAX Login: Empty username or password after sanitization');
         wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
         return;
     }
@@ -214,6 +227,7 @@ function handle_insurance_crm_ajax_login() {
         $user_data = get_user_by('email', $username);
         if ($user_data) {
             $username = $user_data->user_login;
+            error_log('AJAX Login: Converted email to username: ' . $username);
         }
     }
     
@@ -226,7 +240,7 @@ function handle_insurance_crm_ajax_login() {
     $user = wp_signon($creds, is_ssl());
     
     if (is_wp_error($user)) {
-        error_log('AJAX Login: Authentication failed for user: ' . $username);
+        error_log('AJAX Login: Authentication failed for user: ' . $username . ' Error: ' . $user->get_error_message());
         wp_send_json_error(array('message' => 'Geçersiz kullanıcı adı veya şifre.'));
         return;
     }
