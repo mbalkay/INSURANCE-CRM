@@ -178,14 +178,14 @@ add_action('wp_ajax_nopriv_insurance_crm_get_login_nonce', 'handle_insurance_crm
 add_action('wp_ajax_insurance_crm_get_login_nonce', 'handle_insurance_crm_get_login_nonce');
 
 function handle_insurance_crm_get_login_nonce() {
-    // Generate fresh nonce for login
-    $nonce = wp_create_nonce('insurance_crm_login_nonce');
+    // Generate fresh nonce for login - use correct action name
+    $nonce = wp_create_nonce('insurance_crm_login');
     wp_send_json_success(array('nonce' => $nonce));
 }
 
 function handle_insurance_crm_ajax_login() {
-    // Verify nonce for security
-    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'insurance_crm_login_nonce')) {
+    // Verify nonce for security - using correct field name from form
+    if (!isset($_POST['insurance_crm_login_nonce']) || !wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }
@@ -220,8 +220,17 @@ function handle_insurance_crm_ajax_login() {
         return;
     }
     
-    // Check if user is insurance representative
-    if (!in_array('insurance_representative', (array)$user->roles)) {
+    // Check if user is administrator or insurance representative
+    if (in_array('administrator', (array)$user->roles)) {
+        // Update last activity for session management
+        update_user_meta($user->ID, '_user_last_activity', time());
+        
+        wp_send_json_success(array(
+            'message' => 'Giriş başarılı! Boss paneline yönlendiriliyorsunuz...',
+            'redirect' => home_url('/boss-panel/')
+        ));
+        return;
+    } elseif (!in_array('insurance_representative', (array)$user->roles)) {
         wp_logout();
         wp_send_json_error(array('message' => 'Bu sisteme giriş yetkiniz bulunmamaktadır.'));
         return;
@@ -245,7 +254,7 @@ function handle_insurance_crm_ajax_login() {
     
     wp_send_json_success(array(
         'message' => 'Giriş başarılı! Dashboard\'a yönlendiriliyorsunuz...',
-        'redirect_url' => home_url('/temsilci-paneli/')
+        'redirect' => home_url('/temsilci-paneli/')
     ));
 }
 

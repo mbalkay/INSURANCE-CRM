@@ -543,47 +543,7 @@ function hex2rgb($hex) {
     );
 }
 
-// AJAX Login Handler - Düzeltilmiş versiyon
-add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_handle_login');
-function insurance_crm_handle_login() {
-    check_ajax_referer('insurance_crm_login', 'insurance_crm_login_nonce');
-
-    $credentials = array(
-        'user_login'    => sanitize_text_field($_POST['username']),
-        'user_password' => $_POST['password'],
-        'remember'      => isset($_POST['remember']) && $_POST['remember'] === 'on' ? true : false
-    );
-
-    $user = wp_signon($credentials, false);
-
-    if (is_wp_error($user)) {
-        error_log('Insurance CRM Login Error: ' . $user->get_error_message());
-        wp_send_json_error(array('message' => $user->get_error_message()));
-    } else {
-        if (in_array('administrator', (array)$user->roles)) {
-            wp_send_json_success(array('redirect' => home_url('/boss-panel/')));
-        } elseif (in_array('insurance_representative', (array)$user->roles)) {
-            global $wpdb;
-            // SQL sorgusunu düzelt - hata burada olabilir
-            $status = $wpdb->get_var($wpdb->prepare(
-                "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
-                $user->ID
-            ));
-
-            error_log('Insurance CRM Login: User status for ID ' . $user->ID . ' is: ' . ($status ? $status : 'not found'));
-
-            if ($status === 'active') {
-                wp_send_json_success(array('redirect' => home_url('/temsilci-paneli/')));
-            } else {
-                wp_send_json_error(array('message' => 'Hesabınız pasif durumda. Lütfen yöneticiniz ile iletişime geçin.'));
-            }
-        } else {
-            wp_send_json_error(array('message' => 'Bu kullanıcı müşteri temsilcisi veya yönetici değil.'));
-        }
-    }
-
-    wp_die();
-}
+// AJAX Login Handler - Removed duplicate, using main handler in functions.php
 
 // Shortcode'ları kaydet
 add_shortcode('temsilci_dashboard', 'insurance_crm_representative_dashboard_shortcode');
