@@ -1,7 +1,7 @@
 <?php
 /**
  * Panel renklerini ayarlayan ortak kod parçası
- * @version 1.1.0
+ * @version 1.9.0
  */
 
 // Kullanıcının renk ayarlarını al
@@ -170,6 +170,174 @@ $panel_css = "
 </style>
 ";
 
+// Global theme colors from boss settings
+$settings = get_option('insurance_crm_boss_settings', array());
+$theme_colors = isset($settings['site_appearance']) ? $settings['site_appearance'] : array();
+
+// Default mor gradient tema renkleri - preserve original purple gradient theme
+$header_color = isset($theme_colors['header_color']) ? $theme_colors['header_color'] : '#6c5ce7';
+$submenu_color = isset($theme_colors['submenu_color']) ? $theme_colors['submenu_color'] : '#74b9ff';
+$button_color = isset($theme_colors['button_color']) ? $theme_colors['button_color'] : '#a29bfe';
+$accent_color = isset($theme_colors['accent_color']) ? $theme_colors['accent_color'] : '#fd79a8';
+$link_color = isset($theme_colors['link_color']) ? $theme_colors['link_color'] : '#0984e3';
+$background_color = isset($theme_colors['background_color']) ? $theme_colors['background_color'] : '#f8f9fa';
+$primary_color = isset($theme_colors['primary_color']) ? $theme_colors['primary_color'] : '#3498db';
+$secondary_color = isset($theme_colors['secondary_color']) ? $theme_colors['secondary_color'] : '#ffd93d';
+$sidebar_color = isset($theme_colors['sidebar_color']) ? $theme_colors['sidebar_color'] : '#2c3e50';
+
+// Apply global theme colors
+$global_theme_css = "
+<style>
+/* Global Theme Colors - v1.9.0 Enhanced Color System */
+
+/* Primary Elements */
+.btn-primary, .button-primary, .ab-btn-primary {
+    background-color: {$primary_color} !important;
+    border-color: " . adjust_color_opacity($primary_color, 0.8) . " !important;
+}
+
+.btn-primary:hover, .button-primary:hover, .ab-btn-primary:hover {
+    background-color: " . adjust_color_opacity($primary_color, 0.9) . " !important;
+}
+
+/* Headers and Titles */
+h1, h2, h3, h4, h5, h6, .page-title, .panel-title, .section-title {
+    color: {$header_color} !important;
+}
+
+.header-element, .panel-header, .card-header {
+    background: linear-gradient(135deg, {$header_color}, " . adjust_color_opacity($header_color, 0.8) . ") !important;
+    color: white !important;
+}
+
+/* Submenu and Navigation */
+.tab-link, .nav-tab, .submenu-item, .nav-item {
+    color: {$submenu_color} !important;
+    border-color: {$submenu_color} !important;
+}
+
+.tab-link.active, .nav-tab.active {
+    background-color: {$submenu_color} !important;
+    color: white !important;
+}
+
+/* Buttons and Actions */
+.btn, .button, .action-button, .ab-btn {
+    background-color: {$button_color} !important;
+    border-color: " . adjust_color_opacity($button_color, 0.8) . " !important;
+    color: white !important;
+}
+
+.btn:hover, .button:hover, .action-button:hover {
+    background-color: " . adjust_color_opacity($button_color, 0.9) . " !important;
+}
+
+.btn-success, .ab-btn-success {
+    background-color: {$accent_color} !important;
+    border-color: " . adjust_color_opacity($accent_color, 0.8) . " !important;
+}
+
+/* Sidebar and Left Menu */
+.sidebar, .left-menu, .admin-menu, .modern-settings-menu {
+    background-color: {$sidebar_color} !important;
+}
+
+.menu-item, .sidebar-item, .modern-settings-menu li a {
+    background-color: " . adjust_color_opacity($sidebar_color, 0.9) . " !important;
+    color: white !important;
+}
+
+.menu-item:hover, .sidebar-item:hover, .modern-settings-menu li a:hover {
+    background-color: " . adjust_color_opacity($sidebar_color, 0.7) . " !important;
+}
+
+/* Links and Interactive Elements */
+a, .text-link, .ab-link {
+    color: {$link_color} !important;
+}
+
+a:hover, .text-link:hover, .ab-link:hover {
+    color: " . adjust_color_opacity($link_color, 0.8) . " !important;
+}
+
+/* Accent Elements */
+.accent, .highlight, .important, .status-active {
+    color: {$accent_color} !important;
+}
+
+.accent-bg, .highlight-bg {
+    background-color: " . adjust_color_opacity($accent_color, 0.1) . " !important;
+    border-left: 3px solid {$accent_color} !important;
+}
+
+/* Secondary Elements */
+.secondary-btn, .btn-secondary {
+    background-color: {$secondary_color} !important;
+    color: #333 !important;
+}
+
+/* Background */
+body, .main-content, .content-wrapper {
+    background-color: {$background_color} !important;
+}
+
+/* Form Elements with Theme Colors */
+.form-control:focus, .ab-input:focus {
+    border-color: {$primary_color} !important;
+    box-shadow: 0 0 0 3px " . adjust_color_opacity($primary_color, 0.2) . " !important;
+}
+
+/* Pagination */
+.ab-pagination .page-numbers.current {
+    background-color: {$primary_color} !important;
+    border-color: {$primary_color} !important;
+}
+
+/* Cards and Panels with Enhanced Colors */
+.card-primary {
+    border-left: 4px solid {$primary_color} !important;
+}
+
+.card-secondary {
+    border-left: 4px solid {$secondary_color} !important;
+}
+
+.card-accent {
+    border-left: 4px solid {$accent_color} !important;
+}
+
+/* Status Indicators */
+.status-indicator.active {
+    background-color: {$accent_color} !important;
+}
+
+.status-indicator.pending {
+    background-color: {$submenu_color} !important;
+}
+
+/* Enhanced Purple Gradient Theme Preservation */
+.gradient-primary {
+    background: linear-gradient(135deg, {$header_color}, {$submenu_color}) !important;
+}
+
+.gradient-secondary {
+    background: linear-gradient(135deg, {$button_color}, {$accent_color}) !important;
+}
+
+/* Responsive Theme Adjustments */
+@media (max-width: 768px) {
+    .mobile-header {
+        background-color: {$header_color} !important;
+    }
+    
+    .mobile-menu-toggle {
+        color: {$sidebar_color} !important;
+    }
+}
+</style>
+";
+
 // CSS'i sayfanın başına ekle
 echo $panel_css;
+echo $global_theme_css;
 ?>

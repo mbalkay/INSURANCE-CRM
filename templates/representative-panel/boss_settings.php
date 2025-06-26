@@ -584,6 +584,70 @@ $total_task_types = count($settings['default_task_types']);
                             </div>
                         </div>
                         
+                        <div class="row">
+                            <div class="form-group col-md-4">
+                                <label for="header_color">Başlık Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="header_color" id="header_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['header_color']) ? $settings['site_appearance']['header_color'] : '#6c5ce7'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['header_color']) ? $settings['site_appearance']['header_color'] : '#6c5ce7'); ?></span>
+                                </div>
+                                <div class="form-hint">Sayfa başlıkları ve ana başlıklar için renk.</div>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="submenu_color">Alt Menü Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="submenu_color" id="submenu_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['submenu_color']) ? $settings['site_appearance']['submenu_color'] : '#74b9ff'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['submenu_color']) ? $settings['site_appearance']['submenu_color'] : '#74b9ff'); ?></span>
+                                </div>
+                                <div class="form-hint">Alt menüler ve sekme başlıkları için renk.</div>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="button_color">Buton Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="button_color" id="button_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['button_color']) ? $settings['site_appearance']['button_color'] : '#a29bfe'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['button_color']) ? $settings['site_appearance']['button_color'] : '#a29bfe'); ?></span>
+                                </div>
+                                <div class="form-hint">Ana butonlar ve eylem öğeleri için renk.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="form-group col-md-4">
+                                <label for="accent_color">Vurgu Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="accent_color" id="accent_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['accent_color']) ? $settings['site_appearance']['accent_color'] : '#fd79a8'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['accent_color']) ? $settings['site_appearance']['accent_color'] : '#fd79a8'); ?></span>
+                                </div>
+                                <div class="form-hint">Önemli bilgiler ve durum göstergeleri için renk.</div>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="link_color">Bağlantı Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="link_color" id="link_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['link_color']) ? $settings['site_appearance']['link_color'] : '#0984e3'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['link_color']) ? $settings['site_appearance']['link_color'] : '#0984e3'); ?></span>
+                                </div>
+                                <div class="form-hint">Metin içi bağlantılar ve navigasyon öğeleri için renk.</div>
+                            </div>
+                            
+                            <div class="form-group col-md-4">
+                                <label for="background_color">Arka Plan Rengi</label>
+                                <div class="color-picker-container">
+                                    <input type="color" name="background_color" id="background_color" class="color-picker" 
+                                           value="<?php echo esc_attr(isset($settings['site_appearance']['background_color']) ? $settings['site_appearance']['background_color'] : '#f8f9fa'); ?>">
+                                    <span class="color-value"><?php echo esc_attr(isset($settings['site_appearance']['background_color']) ? $settings['site_appearance']['background_color'] : '#f8f9fa'); ?></span>
+                                </div>
+                                <div class="form-hint">Ana sayfa arka plan rengi.</div>
+                            </div>
+                        </div>
+                        
                         <div class="form-actions">
                             <button type="submit" name="submit_settings" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Ayarları Kaydet
@@ -1414,21 +1478,89 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Renk seçici değiştiğinde değeri güncelle
-    const colorPicker = document.getElementById('primary_color');
-    const colorValue = document.querySelector('.color-value');
-    const sidebarColorPicker = document.getElementById('sidebar_color');
-    const sidebarColorValues = document.querySelectorAll('.color-value');
+    const colorPickers = [
+        'primary_color',
+        'secondary_color', 
+        'sidebar_color',
+        'header_color',
+        'submenu_color',
+        'button_color',
+        'accent_color',
+        'link_color',
+        'background_color'
+    ];
     
-    if (colorPicker && colorValue) {
-        colorPicker.addEventListener('input', function() {
-            colorValue.textContent = this.value;
-        });
-    }
+    colorPickers.forEach((pickerId, index) => {
+        const colorPicker = document.getElementById(pickerId);
+        const colorValue = document.querySelectorAll('.color-value')[index];
+        
+        if (colorPicker && colorValue) {
+            colorPicker.addEventListener('input', function() {
+                colorValue.textContent = this.value;
+                // Apply color preview in real-time
+                applyColorPreview(pickerId, this.value);
+            });
+        }
+    });
     
-    if (sidebarColorPicker && sidebarColorValues[1]) {
-        sidebarColorPicker.addEventListener('input', function() {
-            sidebarColorValues[1].textContent = this.value;
-        });
+    // Function to apply color previews
+    function applyColorPreview(colorType, colorValue) {
+        const style = document.createElement('style');
+        style.id = 'color-preview-' + colorType;
+        
+        // Remove existing preview style for this color type
+        const existingStyle = document.getElementById('color-preview-' + colorType);
+        if (existingStyle) {
+            existingStyle.remove();
+        }
+        
+        let css = '';
+        switch(colorType) {
+            case 'primary_color':
+                css = `
+                    .btn-primary, .button-primary { background-color: ${colorValue} !important; }
+                    .primary-accent { color: ${colorValue} !important; }
+                `;
+                break;
+            case 'header_color':
+                css = `
+                    h1, h2, h3, .page-title { color: ${colorValue} !important; }
+                    .header-element { background-color: ${colorValue} !important; }
+                `;
+                break;
+            case 'submenu_color':
+                css = `
+                    .tab-link, .submenu-item { color: ${colorValue} !important; }
+                    .nav-tab { border-color: ${colorValue} !important; }
+                `;
+                break;
+            case 'button_color':
+                css = `
+                    .btn, .button { background-color: ${colorValue} !important; }
+                    .action-button { background-color: ${colorValue} !important; }
+                `;
+                break;
+            case 'sidebar_color':
+                css = `
+                    .sidebar, .left-menu { background-color: ${colorValue} !important; }
+                    .menu-item { background-color: ${colorValue} !important; }
+                `;
+                break;
+            case 'link_color':
+                css = `
+                    a { color: ${colorValue} !important; }
+                    .text-link { color: ${colorValue} !important; }
+                `;
+                break;
+            case 'background_color':
+                css = `
+                    body, .main-content { background-color: ${colorValue} !important; }
+                `;
+                break;
+        }
+        
+        style.textContent = css;
+        document.head.appendChild(style);
     }
     
     // Test email functionality

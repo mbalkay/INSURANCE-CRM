@@ -398,6 +398,27 @@ $notification_days_before = get_user_meta($current_user->ID, 'crm_notification_d
                             </div>
                         </div>
                         
+                        <div class="theme-info-section">
+                            <div class="theme-info-card">
+                                <h4><i class="fas fa-palette"></i> Tema Bilgisi v1.9.0</h4>
+                                <p><strong>Ana Mor Gradient Teması Korundu:</strong> Site görünümü ayarları ana mor gradient rengini korur ve tüm bileşenlerde uygulanır.</p>
+                                <p><strong>Kişiselleştirilebilir Bileşenler:</strong></p>
+                                <ul class="theme-features-list">
+                                    <li><i class="fas fa-check"></i> Sol menü ve navigasyon</li>
+                                    <li><i class="fas fa-check"></i> Başlıklar ve sayfa başlıkları</li>
+                                    <li><i class="fas fa-check"></i> Alt menüler ve sekmeler</li>
+                                    <li><i class="fas fa-check"></i> Butonlar ve eylem öğeleri</li>
+                                    <li><i class="fas fa-check"></i> Bağlantılar ve interaktif öğeler</li>
+                                    <li><i class="fas fa-check"></i> Panel renkleri (Bireysel, Kurumsal, Aile, Araç, Konut)</li>
+                                </ul>
+                                <p class="theme-note">
+                                    <i class="fas fa-info-circle"></i> 
+                                    <strong>Not:</strong> Bu ayarlar sadece kendi panelinizdeki renkleri etkiler. 
+                                    Site geneli renk ayarları için yönetici panelini kullanın.
+                                </p>
+                            </div>
+                        </div>
+                        
                         <div class="form-actions">
                             <button type="button" id="reset-colors" class="button button-secondary">
                                 <i class="fas fa-undo"></i> Varsayılan Renklere Dön
@@ -980,6 +1001,87 @@ textarea:focus {
     margin: 5px 0;
 }
 
+/* Theme Info Section - v1.9.0 */
+.theme-info-section {
+    margin: 25px 0;
+}
+
+.theme-info-card {
+    background: linear-gradient(135deg, #6c5ce7, #74b9ff);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.2);
+}
+
+.theme-info-card h4 {
+    margin: 0 0 15px 0;
+    color: white;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.theme-info-card p {
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+.theme-features-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.theme-features-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+}
+
+.theme-features-list i {
+    color: #00cec9;
+    font-size: 14px;
+}
+
+.theme-note {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 15px;
+    border-left: 4px solid #00cec9;
+}
+
+.theme-note i {
+    color: #00cec9;
+    margin-right: 5px;
+}
+
+/* Enhanced Button States - v1.9.0 */
+.button-success {
+    background-color: #00b894 !important;
+    border-color: #00b894 !important;
+    color: white !important;
+    transition: all 0.3s ease;
+}
+
+.button-secondary {
+    background-color: #636e72;
+    border-color: #636e72;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.button-secondary:hover {
+    background-color: #2d3436;
+    border-color: #2d3436;
+}
+
 /* Responsive tasarım */
 @media (max-width: 992px) {
     .form-grid {
@@ -1125,15 +1227,27 @@ jQuery(document).ready(function($) {
         updatePanelPreviews();
     });
     
-    // Varsayılan renklere dön
+    // Varsayılan renklere dön - v1.9.0 Enhanced Purple Gradient Theme
     $('#reset-colors').on('click', function(e) {
         e.preventDefault();
-        $('#personal_color').val('#3498db');
-        $('#corporate_color').val('#4caf50');
-        $('#family_color').val('#ff9800');
-        $('#vehicle_color').val('#e74c3c');
-        $('#home_color').val('#9c27b0');
+        // Updated default colors that work better with the purple gradient theme
+        $('#personal_color').val('#6c5ce7');  // Purple theme personal
+        $('#corporate_color').val('#74b9ff'); // Light blue corporate  
+        $('#family_color').val('#fd79a8');    // Pink family
+        $('#vehicle_color').val('#e17055');   // Orange vehicle
+        $('#home_color').val('#a29bfe');      // Light purple home
         updatePanelPreviews();
+        
+        // Show confirmation message
+        var $button = $(this);
+        var originalText = $button.html();
+        $button.html('<i class="fas fa-check"></i> Renk Teması Güncellendi!');
+        $button.addClass('button-success');
+        
+        setTimeout(function() {
+            $button.html(originalText);
+            $button.removeClass('button-success');
+        }, 2000);
     });
     
     // Renk opaklığını ayarla (açık arka plan için)

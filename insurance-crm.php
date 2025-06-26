@@ -10,9 +10,9 @@
  * Plugin Name: Insurance CRM
  * Plugin URI: https://github.com/anadolubirlik/insurance-crm
  * Description: Sigorta acenteleri için müşteri, poliçe ve görev yönetim sistemi.
- * Version: 1.8.2
+ * Version: 1.9.0
  * Pagename: insurance-crm.php
- * Page Version: 1.8.2
+ * Page Version: 1.9.0
  * Author: Mehmet BALKAY | Anadolu Birlik
  * Author URI: https://www.balkay.net
  */
@@ -67,7 +67,7 @@ if (file_exists($api_file) && file_exists($license_manager_file)) {
     }
 
     // Plugin sürümünü doğrudan al veya sabit bir değer kullan
-    $plugin_version = defined('INSURANCE_CRM_VERSION') ? INSURANCE_CRM_VERSION : '1.8.1';
+    $plugin_version = defined('INSURANCE_CRM_VERSION') ? INSURANCE_CRM_VERSION : '1.9.0';
     
     // Lisans yöneticisini başlat - versiyon numarasını doğrudan geç
     global $insurance_crm_license_manager;
@@ -190,7 +190,7 @@ add_action('init', 'force_update_crm_db', 5);
 /**
  * Plugin version.
  */
-define('INSURANCE_CRM_VERSION', '1.8.1');
+define('INSURANCE_CRM_VERSION', '1.9.0');
 
 /**
  * Plugin base path
