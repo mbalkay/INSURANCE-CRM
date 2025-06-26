@@ -2,6 +2,71 @@
  * Representative Panel JavaScript
  */
 jQuery(document).ready(function($) {
+    // Session timeout monitoring (60 minutes)
+    var sessionTimeoutInterval;
+    var sessionWarningShown = false;
+    
+    function initSessionTimeout() {
+        // Check session every 5 minutes
+        sessionTimeoutInterval = setInterval(checkSession, 5 * 60 * 1000);
+        
+        // Also check session on user activity
+        $(document).on('click keypress mousemove', function() {
+            if (!sessionWarningShown) {
+                checkSession();
+            }
+        });
+    }
+    
+    function checkSession() {
+        $.ajax({
+            url: insurance_crm_ajax.ajax_url || (window.location.origin + '/wp-admin/admin-ajax.php'),
+            type: 'POST',
+            data: {
+                action: 'insurance_crm_check_session'
+            },
+            success: function(response) {
+                if (!response.success) {
+                    handleSessionTimeout();
+                } else {
+                    sessionWarningShown = false;
+                    // Show warning if less than 10 minutes remaining
+                    var remainingMinutes = Math.floor(response.data.remaining_seconds / 60);
+                    if (remainingMinutes <= 10 && remainingMinutes > 0 && !sessionWarningShown) {
+                        showSessionWarning(remainingMinutes);
+                    }
+                }
+            },
+            error: function() {
+                // If AJAX fails, assume session timeout
+                handleSessionTimeout();
+            }
+        });
+    }
+    
+    function showSessionWarning(remainingMinutes) {
+        sessionWarningShown = true;
+        var message = 'Oturumunuz ' + remainingMinutes + ' dakika sonra sona erecek. Devam etmek için herhangi bir yere tıklayın.';
+        
+        if (confirm(message)) {
+            // User wants to continue, check session again
+            sessionWarningShown = false;
+            checkSession();
+        } else {
+            // User chose to logout or close
+            window.location.href = '/temsilci-girisi/?logout=1';
+        }
+    }
+    
+    function handleSessionTimeout() {
+        clearInterval(sessionTimeoutInterval);
+        alert('Oturumunuz 60 dakika hareketsizlik nedeniyle sona erdi. Tekrar giriş yapmanız gerekiyor.');
+        window.location.href = '/temsilci-girisi/?timeout=1';
+    }
+    
+    // Initialize session timeout monitoring
+    initSessionTimeout();
+    
     // Hızlı Ekle dropdown
     $('#quick-add-toggle').on('click', function(e) {
         e.preventDefault();

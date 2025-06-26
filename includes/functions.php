@@ -59,6 +59,16 @@ add_action('admin_init', 'insurance_crm_redirect_customer_links');
 // functions.php dosyasına eklenecek
 function temsilci_panel_shortcode() {
     ob_start();
+    
+    // Check for timeout or logout messages
+    $message = '';
+    if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
+        $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Oturumunuz 60 dakika hareketsizlik nedeniyle sona erdi. Lütfen tekrar giriş yapın.</div>';
+    } elseif (isset($_GET['logout']) && $_GET['logout'] == '1') {
+        $message = '<div style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #bee5eb;">Güvenli bir şekilde çıkış yaptınız.</div>';
+    } elseif (isset($_GET['error']) && $_GET['error'] == 'license_expired') {
+        $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Lisans süresi dolmuş. Lütfen yöneticinize başvurun.</div>';
+    }
     ?>
     <div class="login-container" style="max-width: 400px; margin: 50px auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px;">
         <div class="login-logo" style="text-align: center; margin-bottom: 30px;">
@@ -67,6 +77,7 @@ function temsilci_panel_shortcode() {
                 <h2 style="color: #2c3e50; font-size: 24px;">Anadolu Birlik Sigorta</h2>
             <?php endif; ?>
         </div>
+        <?php echo $message; ?>
         <div class="login-form">
             <h2 style="color: #2c3e50; text-align: center; margin-bottom: 20px; font-size: 22px;">Müşteri Temsilcisi Girişi</h2>
             <form action="#" method="post" id="temsilci-login-form">
@@ -94,15 +105,51 @@ function temsilci_panel_shortcode() {
     document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('temsilci-login-form').addEventListener('submit', function(e) {
             e.preventDefault();
+            
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            const submitButton = this.querySelector('button[type="submit"]');
             
-            // Basit bir demo giriş kontrolü - gerçekte sunucuda doğrulanmalıdır
-            if(username === 'demo' && password === 'demo123') {
-                alert('Başarıyla giriş yaptınız! Dashboard hazır olduğunda yönlendirileceksiniz.');
-            } else {
-                alert('Geçersiz kullanıcı adı veya şifre.');
-            }
+            // Disable button and show loading state
+            submitButton.disabled = true;
+            submitButton.textContent = 'Giriş yapılıyor...';
+            
+            // Create FormData
+            const formData = new FormData();
+            formData.append('action', 'insurance_crm_login');
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('remember', remember ? '1' : '0');
+            formData.append('nonce', '<?php echo wp_create_nonce('insurance_crm_login_nonce'); ?>');
+            
+            // AJAX request
+            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    alert(data.data.message);
+                    // Redirect to dashboard without page refresh
+                    window.location.href = data.data.redirect_url;
+                } else {
+                    // Show error message
+                    alert(data.data.message);
+                    // Re-enable button
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Giriş Yap';
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                // Re-enable button
+                submitButton.disabled = false;
+                submitButton.textContent = 'Giriş Yap';
+            });
         });
     });
     </script>
@@ -110,6 +157,148 @@ function temsilci_panel_shortcode() {
     return ob_get_clean();
 }
 add_shortcode('temsilci_panel', 'temsilci_panel_shortcode');
+
+// AJAX login handler for representatives
+add_action('wp_ajax_nopriv_insurance_crm_login', 'handle_insurance_crm_ajax_login');
+add_action('wp_ajax_insurance_crm_login', 'handle_insurance_crm_ajax_login');
+
+function handle_insurance_crm_ajax_login() {
+    // Verify nonce for security
+    if (!wp_verify_nonce($_POST['nonce'], 'insurance_crm_login_nonce')) {
+        wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
+        return;
+    }
+    
+    $username = sanitize_user($_POST['username']);
+    $password = $_POST['password'];
+    $remember = isset($_POST['remember']) ? true : false;
+    
+    if (empty($username) || empty($password)) {
+        wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
+        return;
+    }
+    
+    // If email is provided, get username
+    if (is_email($username)) {
+        $user_data = get_user_by('email', $username);
+        if ($user_data) {
+            $username = $user_data->user_login;
+        }
+    }
+    
+    $creds = array(
+        'user_login' => $username,
+        'user_password' => $password,
+        'remember' => $remember
+    );
+    
+    $user = wp_signon($creds, is_ssl());
+    
+    if (is_wp_error($user)) {
+        wp_send_json_error(array('message' => 'Geçersiz kullanıcı adı veya şifre.'));
+        return;
+    }
+    
+    // Check if user is insurance representative
+    if (!in_array('insurance_representative', (array)$user->roles)) {
+        wp_logout();
+        wp_send_json_error(array('message' => 'Bu sisteme giriş yetkiniz bulunmamaktadır.'));
+        return;
+    }
+    
+    // Check representative status
+    global $wpdb;
+    $rep_status = $wpdb->get_var($wpdb->prepare(
+        "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
+        $user->ID
+    ));
+    
+    if ($rep_status !== 'active') {
+        wp_logout();
+        wp_send_json_error(array('message' => 'Hesabınız aktif değil. Lütfen yöneticinize başvurun.'));
+        return;
+    }
+    
+    // Update last activity for session management
+    update_user_meta($user->ID, '_user_last_activity', time());
+    
+    wp_send_json_success(array(
+        'message' => 'Giriş başarılı! Dashboard\'a yönlendiriliyorsunuz...',
+        'redirect_url' => home_url('/temsilci-paneli/')
+    ));
+}
+
+// Session timeout functionality - 60 minutes of inactivity
+add_action('wp_loaded', 'insurance_crm_check_session_timeout');
+add_action('wp_ajax_insurance_crm_check_session', 'handle_insurance_crm_session_check');
+add_action('wp_ajax_nopriv_insurance_crm_check_session', 'handle_insurance_crm_session_check');
+
+function insurance_crm_check_session_timeout() {
+    // Only check for logged-in insurance representatives
+    if (!is_user_logged_in()) {
+        return;
+    }
+    
+    $user = wp_get_current_user();
+    if (!in_array('insurance_representative', (array)$user->roles)) {
+        return;
+    }
+    
+    $last_activity = get_user_meta($user->ID, '_user_last_activity', true);
+    if (empty($last_activity)) {
+        // First time login, set current time
+        update_user_meta($user->ID, '_user_last_activity', time());
+        return;
+    }
+    
+    $timeout_minutes = 60; // 60 minutes timeout
+    $timeout_seconds = $timeout_minutes * 60;
+    
+    if ((time() - $last_activity) > $timeout_seconds) {
+        // Session has timed out
+        wp_logout();
+        
+        // Redirect to login page with timeout message
+        if (!is_admin()) {
+            wp_safe_redirect(home_url('/temsilci-girisi/?timeout=1'));
+            exit;
+        }
+    } else {
+        // Update last activity
+        update_user_meta($user->ID, '_user_last_activity', time());
+    }
+}
+
+function handle_insurance_crm_session_check() {
+    if (!is_user_logged_in()) {
+        wp_send_json_error(array('message' => 'Oturum bulunamadı.', 'timeout' => true));
+        return;
+    }
+    
+    $user = wp_get_current_user();
+    if (!in_array('insurance_representative', (array)$user->roles)) {
+        wp_send_json_error(array('message' => 'Geçersiz kullanıcı.', 'timeout' => true));
+        return;
+    }
+    
+    $last_activity = get_user_meta($user->ID, '_user_last_activity', true);
+    $timeout_minutes = 60;
+    $timeout_seconds = $timeout_minutes * 60;
+    
+    if (empty($last_activity) || (time() - $last_activity) > $timeout_seconds) {
+        wp_send_json_error(array('message' => 'Oturumunuz zaman aşımına uğradı.', 'timeout' => true));
+        return;
+    }
+    
+    // Update last activity
+    update_user_meta($user->ID, '_user_last_activity', time());
+    
+    $remaining_seconds = $timeout_seconds - (time() - $last_activity);
+    wp_send_json_success(array(
+        'remaining_seconds' => $remaining_seconds,
+        'timeout_minutes' => $timeout_minutes
+    ));
+}
 
 
 // Müşteri temsilcileri için giriş kontrolü ve yönlendirme
