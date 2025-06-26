@@ -257,6 +257,19 @@ function insurance_crm_representative_login_shortcode() {
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
     }
 
+    .login-success {
+        background: #f0fdf4;
+        color: #16a34a;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #16a34a;
+        font-size: 14px;
+        text-align: center;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 2px 8px rgba(22, 163, 74, 0.1);
+    }
+
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
         10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
@@ -490,22 +503,54 @@ function insurance_crm_representative_login_shortcode() {
             const $button = $("#wp-submit");
             $button.addClass('loading').prop("disabled", true);
             $(".login-loading").show();
-            $(".login-error").remove();
+            $(".login-error, .login-success").remove(); // Clear both error and success messages
 
             $.ajax({
                 url: '<?php echo admin_url('admin-ajax.php'); ?>',
                 type: 'POST',
                 data: $(this).serialize() + '&action=insurance_crm_login',
+                dataType: 'json',
                 success: function(response) {
-                    if (response.success) {
-                        window.location.href = response.data.redirect;
+                    console.log('AJAX Response:', response); // Debug log
+                    if (response.success && response.data && response.data.redirect) {
+                        console.log('Redirecting to:', response.data.redirect); // Debug log
+                        // Show success message briefly before redirect
+                        $(".login-header").after('<div class="login-success">' + (response.data.message || 'Giriş başarılı!') + '</div>');
+                        
+                        // Multiple fallback methods for redirect
+                        setTimeout(function() {
+                            try {
+                                // First try: window.location.replace (doesn't add to history)
+                                window.location.replace(response.data.redirect);
+                            } catch(e) {
+                                console.log('Replace failed, trying href:', e);
+                                try {
+                                    // Fallback: window.location.href
+                                    window.location.href = response.data.redirect;
+                                } catch(e2) {
+                                    console.log('Href failed, trying assign:', e2);
+                                    // Last resort: window.location.assign
+                                    window.location.assign(response.data.redirect);
+                                }
+                            }
+                        }, 800);
+                        
+                        // Safety fallback after longer delay
+                        setTimeout(function() {
+                            if (window.location.href.indexOf('temsilci-girisi') !== -1) {
+                                console.log('Still on login page, forcing redirect');
+                                window.location.href = response.data.redirect;
+                            }
+                        }, 2000);
                     } else {
-                        $(".login-header").after('<div class="login-error">' + response.data.message + '</div>');
+                        console.log('Invalid response format:', response);
+                        $(".login-header").after('<div class="login-error">' + (response.data && response.data.message ? response.data.message : 'Giriş başarısız.') + '</div>');
                         $button.removeClass('loading').prop("disabled", false);
                         $(".login-loading").hide();
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
+                    console.log('AJAX Error:', xhr.responseText); // Debug log
                     $(".login-header").after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
                     $button.removeClass('loading').prop("disabled", false);
                     $(".login-loading").hide();

@@ -184,8 +184,12 @@ function handle_insurance_crm_get_login_nonce() {
 }
 
 function handle_insurance_crm_ajax_login() {
+    // Log the beginning of the function for debugging
+    error_log('AJAX Login Handler Called');
+    
     // Verify nonce for security - using correct field name from form
     if (!isset($_POST['insurance_crm_login_nonce']) || !wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
+        error_log('AJAX Login: Nonce verification failed');
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }
@@ -194,7 +198,10 @@ function handle_insurance_crm_ajax_login() {
     $password = $_POST['password'];
     $remember = isset($_POST['remember']) ? true : false;
     
+    error_log('AJAX Login: Attempting login for username: ' . $username);
+    
     if (empty($username) || empty($password)) {
+        error_log('AJAX Login: Empty username or password');
         wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
         return;
     }
@@ -216,15 +223,19 @@ function handle_insurance_crm_ajax_login() {
     $user = wp_signon($creds, is_ssl());
     
     if (is_wp_error($user)) {
+        error_log('AJAX Login: Authentication failed for user: ' . $username);
         wp_send_json_error(array('message' => 'Geçersiz kullanıcı adı veya şifre.'));
         return;
     }
+    
+    error_log('AJAX Login: Authentication successful for user ID: ' . $user->ID);
     
     // Check if user is administrator or insurance representative
     if (in_array('administrator', (array)$user->roles)) {
         // Update last activity for session management
         update_user_meta($user->ID, '_user_last_activity', time());
         
+        error_log('AJAX Login: Admin login successful, redirecting to boss panel');
         wp_send_json_success(array(
             'message' => 'Giriş başarılı! Boss paneline yönlendiriliyorsunuz...',
             'redirect' => home_url('/boss-panel/')
@@ -232,6 +243,7 @@ function handle_insurance_crm_ajax_login() {
         return;
     } elseif (!in_array('insurance_representative', (array)$user->roles)) {
         wp_logout();
+        error_log('AJAX Login: User does not have required role');
         wp_send_json_error(array('message' => 'Bu sisteme giriş yetkiniz bulunmamaktadır.'));
         return;
     }
@@ -243,8 +255,11 @@ function handle_insurance_crm_ajax_login() {
         $user->ID
     ));
     
+    error_log('AJAX Login: Representative status for user ' . $user->ID . ': ' . $rep_status);
+    
     if ($rep_status !== 'active') {
         wp_logout();
+        error_log('AJAX Login: Representative account is not active');
         wp_send_json_error(array('message' => 'Hesabınız aktif değil. Lütfen yöneticinize başvurun.'));
         return;
     }
@@ -252,9 +267,12 @@ function handle_insurance_crm_ajax_login() {
     // Update last activity for session management
     update_user_meta($user->ID, '_user_last_activity', time());
     
+    $redirect_url = home_url('/temsilci-paneli/');
+    error_log('AJAX Login: Representative login successful, redirecting to: ' . $redirect_url);
+    
     wp_send_json_success(array(
         'message' => 'Giriş başarılı! Dashboard\'a yönlendiriliyorsunuz...',
-        'redirect' => home_url('/temsilci-paneli/')
+        'redirect' => $redirect_url
     ));
 }
 
