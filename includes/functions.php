@@ -140,7 +140,6 @@ function temsilci_panel_shortcode() {
                 });
             })
             .then(response => response.json())
-            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     // Show success message
