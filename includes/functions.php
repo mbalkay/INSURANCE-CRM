@@ -186,10 +186,13 @@ function handle_insurance_crm_get_login_nonce() {
 function handle_insurance_crm_ajax_login() {
     // Log the beginning of the function for debugging
     error_log('AJAX Login Handler Called');
+    error_log('POST data: ' . print_r($_POST, true));
     
     // Verify nonce for security - using correct field name from form
     if (!isset($_POST['insurance_crm_login_nonce']) || !wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
         error_log('AJAX Login: Nonce verification failed');
+        error_log('Nonce field value: ' . ($_POST['insurance_crm_login_nonce'] ?? 'NOT SET'));
+        error_log('Nonce verification result: ' . (wp_verify_nonce($_POST['insurance_crm_login_nonce'] ?? '', 'insurance_crm_login') ? 'VALID' : 'INVALID'));
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }

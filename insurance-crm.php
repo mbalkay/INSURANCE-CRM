@@ -2419,68 +2419,7 @@ function insurance_crm_add_shortcodes() {
 }
 add_action('init', 'insurance_crm_add_shortcodes');
 
-/**
- * Login işlemini yönet
- */
-function insurance_crm_process_login() {
-    if (isset($_POST['insurance_crm_login']) && isset($_POST['insurance_crm_login_nonce'])) {
-        if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
-            error_log('Insurance CRM Login Error: Invalid nonce');
-            wp_safe_redirect(add_query_arg('login', 'failed', home_url('/temsilci-girisi/')));
-            exit;
-        }
-        
-        $username = sanitize_user($_POST['username']);
-        $password = $_POST['password'];
-        $remember = isset($_POST['remember']) ? true : false;
-        
-        if (is_email($username)) {
-            $user_data = get_user_by('email', $username);
-            if ($user_data) {
-                $username = $user_data->user_login;
-            }
-        }
-        
-        $creds = array(
-            'user_login' => $username,
-            'user_password' => $password,
-            'remember' => $remember
-        );
-        
-        $user = wp_signon($creds, is_ssl());
-        
-        if (is_wp_error($user)) {
-            error_log('Insurance CRM Login Error: ' . $user->get_error_message());
-            wp_safe_redirect(add_query_arg('login', 'failed', home_url('/temsilci-girisi/')));
-            exit;
-        }
-        
-        if (!in_array('insurance_representative', (array)$user->roles)) {
-            wp_logout();
-            error_log('Insurance CRM Login Error: User is not a representative');
-            wp_safe_redirect(add_query_arg('login', 'failed', home_url('/temsilci-girisi/')));
-            exit;
-        }
-        
-        global $wpdb;
-        $rep_status = $wpdb->get_var($wpdb->prepare(
-            "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
-            $user->ID
-        ));
-        
-        if ($rep_status !== 'active') {
-            wp_logout();
-            error_log('Insurance CRM Login Error: Representative status is not active');
-            wp_safe_redirect(add_query_arg('login', 'inactive', home_url('/temsilci-girisi/')));
-            exit;
-        }
-        
-        error_log('Insurance CRM Login Success: User ID ' . $user->ID);
-        wp_safe_redirect(home_url('/temsilci-paneli/'));
-        exit;
-    }
-}
-add_action('init', 'insurance_crm_process_login', 5);
+// Traditional form login handler removed - using AJAX login only
 
 // Admin notice function removed per user request
 

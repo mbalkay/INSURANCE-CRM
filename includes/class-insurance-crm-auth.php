@@ -9,53 +9,14 @@ class Insurance_CRM_Auth {
      * Sınıf örneklemesini başlat
      */
     public function __construct() {
-        // Login form işlemini dinle
-        add_action('init', array($this, 'process_login'));
+        // Remove form processing - using AJAX login only
+        // add_action('init', array($this, 'process_login'));
         
         // WordPress giriş form kontrolünü ekle
         add_filter('authenticate', array($this, 'check_representative_status'), 30, 3);
     }
     
-    /**
-     * Login formunu işle
-     */
-    public function process_login() {
-        // Login form gönderildi mi kontrol et
-        if (isset($_POST['insurance_crm_login']) && isset($_POST['insurance_crm_login_nonce'])) {
-            
-            // Nonce doğrulama
-            if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
-                wp_die('Güvenlik doğrulaması başarısız oldu. Lütfen sayfayı yenileyip tekrar deneyin.');
-            }
-            
-            // Kullanıcı adı ve şifreyi al
-            $username = isset($_POST['username']) ? sanitize_user($_POST['username']) : '';
-            $password = isset($_POST['password']) ? $_POST['password'] : '';
-            
-            // Hatırla seçeneği
-            $remember = isset($_POST['remember']) ? true : false;
-            
-            // Kullanıcı doğrulama
-            $user = wp_authenticate($username, $password);
-            
-            // Hata kontrolü
-            if (is_wp_error($user)) {
-                // Log failed login attempt
-                $this->log_failed_login_attempt($username);
-                
-                // Hata yönlendirmesi
-                wp_redirect(add_query_arg('login', 'failed', wp_get_referer()));
-                exit;
-            } else {
-                // Başarılı giriş
-                wp_set_auth_cookie($user->ID, $remember);
-                
-                // Dashboard'a yönlendir
-                wp_redirect(home_url('/temsilci-paneli/'));
-                exit;
-            }
-        }
-    }
+    // Traditional form login processing removed - using AJAX login only
     
     /**
      * Müşteri temsilcisi durumunu kontrol et
