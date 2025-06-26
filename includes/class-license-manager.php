@@ -56,11 +56,18 @@ class Insurance_CRM_License_Manager {
         
         // Periodic license check (every 30 minutes)
         add_action('insurance_crm_periodic_license_check', array($this, 'perform_periodic_license_check'));
-        if (!wp_next_scheduled('insurance_crm_periodic_license_check')) {
+        
+        // Clear old 4-hour schedule and setup new 30-minute schedule
+        $current_schedule = wp_get_schedule('insurance_crm_periodic_license_check');
+        if ($current_schedule === 'insurance_crm_4_hours' || !wp_next_scheduled('insurance_crm_periodic_license_check')) {
+            // Clear old schedule
+            wp_clear_scheduled_hook('insurance_crm_periodic_license_check');
+            // Setup new 30-minute schedule
             wp_schedule_event(time(), 'insurance_crm_30_minutes', 'insurance_crm_periodic_license_check');
+            error_log('[LISANS DEBUG] Updated license check schedule from 4 hours to 30 minutes');
         }
         
-        // Add custom cron schedule for 4 hours
+        // Add custom cron schedule
         add_filter('cron_schedules', array($this, 'add_custom_cron_schedules'));
     }
 
@@ -342,9 +349,9 @@ class Insurance_CRM_License_Manager {
     private function maybe_check_license_status() {
         $last_check = get_option('insurance_crm_license_last_check', '');
         
-        // Check every 4 hours
+        // Check every 30 minutes
         if (empty($last_check) || 
-            strtotime($last_check) < (time() - 4 * 60 * 60)) {
+            strtotime($last_check) < (time() - 30 * 60)) {
             $this->perform_license_check();
         }
     }

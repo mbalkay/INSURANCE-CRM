@@ -25,6 +25,7 @@ jQuery(document).ready(function($) {
             data: {
                 action: 'insurance_crm_check_session'
             },
+            timeout: 10000, // 10 second timeout
             success: function(response) {
                 if (!response.success) {
                     handleSessionTimeout();
@@ -37,9 +38,13 @@ jQuery(document).ready(function($) {
                     }
                 }
             },
-            error: function() {
-                // If AJAX fails, assume session timeout
-                handleSessionTimeout();
+            error: function(xhr, status, error) {
+                console.warn('Session check failed:', status, error);
+                // Only handle as timeout if it's a clear authentication issue
+                if (xhr.status === 401 || xhr.status === 403) {
+                    handleSessionTimeout();
+                }
+                // For other errors (network issues, etc.), retry later
             }
         });
     }
