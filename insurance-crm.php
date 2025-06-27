@@ -2523,7 +2523,7 @@ function insurance_crm_ajax_login() {
     if (is_wp_error($user)) {
         error_log('Insurance CRM AJAX Login Error: ' . $user->get_error_message());
         wp_send_json_error(array(
-            'message' => 'Giriş bilgileri hatalı.'
+            'message' => 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.'
         ));
     }
     
@@ -2553,9 +2553,20 @@ function insurance_crm_ajax_login() {
     
     error_log('Insurance CRM AJAX Login Success: User ID ' . $user->ID);
     
+    // Get the dashboard page URL - check multiple possible URLs
+    $dashboard_url = home_url('/temsilci-paneli/');
+    
+    // Alternative: check if page exists and get its URL
+    $dashboard_page = get_page_by_path('temsilci-paneli');
+    if ($dashboard_page) {
+        $dashboard_url = get_permalink($dashboard_page->ID);
+    }
+    
     wp_send_json_success(array(
-        'message' => 'Giriş başarılı. Yönlendiriliyorsunuz...',
-        'redirect' => home_url('/temsilci-paneli/')
+        'message' => 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...',
+        'redirect' => $dashboard_url,
+        'user_id' => $user->ID,
+        'user_name' => $user->display_name
     ));
 }
 add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');

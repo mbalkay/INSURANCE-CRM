@@ -1497,11 +1497,7 @@
             // Validate inputs
             if (!$username.val().trim() || !$password.val().trim()) {
                 console.log('LoginHandler: Validation failed - empty fields');
-                try {
-                    utils.showNotification('Kullanıcı adı ve şifre gereklidir.', 'error');
-                } catch (e) {
-                    alert('Kullanıcı adı ve şifre gereklidir.');
-                }
+                this.showLoginMessage($form, 'Kullanıcı adı ve şifre gereklidir.', 'error');
                 return;
             }
             
@@ -1538,52 +1534,106 @@
             }
             
             console.log('LoginHandler: AJAX URL:', config.ajaxUrl);
-            console.log('LoginHandler: AJAX Data:', ajaxData);
+            console.log('LoginHandler: AJAX Data (without password):', {...ajaxData, password: '[HIDDEN]'});
             
             $.ajax({
                 url: config.ajaxUrl,
                 type: 'POST',
                 data: ajaxData,
                 dataType: 'json',
+                timeout: 30000, // 30 second timeout
                 success: (response) => {
                     console.log('LoginHandler: AJAX Success:', response);
-                    if (response.success) {
+                    if (response.success && response.data) {
                         // Show success message
-                        $form.find('.login-header').after('<div class="login-success">' + (response.data.message || 'Giriş başarılı. Yönlendiriliyorsunuz...') + '</div>');
+                        this.showLoginMessage($form, response.data.message || 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...', 'success');
                         
                         // Hide loading but keep button disabled during redirect
                         $form.find('.login-loading').hide();
                         
-                        // Redirect to dashboard with better error handling
-                        const redirectUrl = response.data.redirect || '/temsilci-paneli/';
+                        // Get redirect URL with fallbacks
+                        let redirectUrl = response.data.redirect;
+                        if (!redirectUrl) {
+                            redirectUrl = '/temsilci-paneli/';
+                            console.warn('LoginHandler: No redirect URL in response, using default');
+                        }
+                        
                         console.log('LoginHandler: Redirecting to:', redirectUrl);
                         
+                        // Immediate redirect attempt
                         setTimeout(() => {
+                            console.log('LoginHandler: Attempting redirect...');
+                            
+                            // Try multiple redirect methods
                             try {
+                                // Method 1: Simple assignment
                                 window.location.href = redirectUrl;
                             } catch (e) {
-                                console.error('LoginHandler: Redirect failed:', e);
-                                // Fallback - try different redirect method
-                                window.location.replace(redirectUrl);
+                                console.error('LoginHandler: href redirect failed:', e);
+                                try {
+                                    // Method 2: Replace
+                                    window.location.replace(redirectUrl);
+                                } catch (e2) {
+                                    console.error('LoginHandler: replace redirect failed:', e2);
+                                    try {
+                                        // Method 3: Assign directly to location
+                                        window.location = redirectUrl;
+                                    } catch (e3) {
+                                        console.error('LoginHandler: direct assignment failed:', e3);
+                                        // Last resort: show manual link
+                                        this.showLoginMessage($form, 'Giriş başarılı! <a href="' + redirectUrl + '">Dashboard\'a gitmek için tıklayın</a>', 'success');
+                                        this.resetLoginForm($form, $submitBtn);
+                                    }
+                                }
                             }
-                        }, 1500);
-                    } else {
-                        // Show error message
-                        $form.find('.login-header').after('<div class="login-error">' + (response.data ? response.data.message : 'Giriş hatası') + '</div>');
+                        }, 1000);
                         
-                        // Reset form only on error
+                    } else {
+                        console.error('LoginHandler: Invalid success response:', response);
+                        // Show error message
+                        this.showLoginMessage($form, response.data ? response.data.message : 'Giriş işlemi başarısız oldu.', 'error');
+                        
+                        // Reset form
                         this.resetLoginForm($form, $submitBtn);
                     }
                 },
                 error: (xhr, status, error) => {
-                    console.log('LoginHandler: AJAX Error:', xhr, status, error);
-                    // Show error message
-                    $form.find('.login-header').after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
+                    console.error('LoginHandler: AJAX Error:', {xhr, status, error});
                     
-                    // Reset form only on error
+                    let errorMessage = 'Bir hata oluştu, lütfen tekrar deneyin.';
+                    
+                    // More specific error messages
+                    if (status === 'timeout') {
+                        errorMessage = 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.';
+                    } else if (xhr.status === 0) {
+                        errorMessage = 'İnternet bağlantınızı kontrol edin.';
+                    } else if (xhr.status >= 500) {
+                        errorMessage = 'Sunucu hatası oluştu. Lütfen tekrar deneyin.';
+                    } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        errorMessage = xhr.responseJSON.data.message;
+                    }
+                    
+                    this.showLoginMessage($form, errorMessage, 'error');
+                    
+                    // Reset form
                     this.resetLoginForm($form, $submitBtn);
                 }
             });
+        },
+        
+        showLoginMessage($form, message, type) {
+            // Remove any existing messages
+            $form.find('.login-error, .login-success').remove();
+            
+            // Create new message
+            const messageClass = type === 'error' ? 'login-error' : 'login-success';
+            const $message = $('<div class="' + messageClass + '">' + message + '</div>');
+            
+            // Add message after login header
+            $form.find('.login-header').after($message);
+            
+            // Scroll message into view if needed
+            $message[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         },
         
         resetLoginForm($form, $submitBtn) {
