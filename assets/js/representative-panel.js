@@ -11,10 +11,12 @@
     // Global namespace
     window.RepresentativePanel = window.RepresentativePanel || {};
 
-    // Configuration
+    // Configuration - with fallbacks for missing localization
     const config = {
-        ajaxUrl: representativePanel.ajaxUrl,
-        nonce: representativePanel.nonce,
+        ajaxUrl: (typeof representativePanel !== 'undefined' && representativePanel.ajaxUrl) ? 
+                 representativePanel.ajaxUrl : '/wp-admin/admin-ajax.php',
+        nonce: (typeof representativePanel !== 'undefined' && representativePanel.nonce) ? 
+               representativePanel.nonce : '',
         refreshInterval: 300000, // 5 minutes
         sessionTimeout: 3600000, // 60 minutes (60 * 60 * 1000)
         sessionCheckInterval: 60000, // 1 minute check
@@ -1462,27 +1464,40 @@
     // AJAX Login Handler
     const loginHandler = {
         init() {
+            console.log('LoginHandler: Initializing...');
             this.bindEvents();
         },
         
         bindEvents() {
+            console.log('LoginHandler: Binding events...');
             // Handle AJAX login form submission - target both class and ID
             $(document).on('submit', '.insurance-crm-login-form, #loginform', this.handleLogin.bind(this));
+            console.log('LoginHandler: Events bound to form selectors');
         },
         
         handleLogin(e) {
+            console.log('LoginHandler: Form submission detected');
             e.preventDefault();
             
             const $form = $(e.target);
+            console.log('LoginHandler: Form element found', $form.length);
+            
             const $submitBtn = $form.find('input[type="submit"], button[type="submit"]');
             const $username = $form.find('input[name="username"]');
             const $password = $form.find('input[name="password"]');
             const $remember = $form.find('input[name="remember"]');
             const $loginNonce = $form.find('input[name="insurance_crm_login_nonce"]');
             
+            console.log('LoginHandler: Form elements found - submit:', $submitBtn.length, 'username:', $username.length, 'password:', $password.length);
+            
             // Validate inputs
             if (!$username.val().trim() || !$password.val().trim()) {
-                utils.showNotification('Kullanıcı adı ve şifre gereklidir.', 'error');
+                console.log('LoginHandler: Validation failed - empty fields');
+                try {
+                    utils.showNotification('Kullanıcı adı ve şifre gereklidir.', 'error');
+                } catch (e) {
+                    alert('Kullanıcı adı ve şifre gereklidir.');
+                }
                 return;
             }
             
@@ -1521,11 +1536,16 @@
                 ajaxData.nonce = config.nonce;
             }
             
+            console.log('LoginHandler: AJAX URL:', config.ajaxUrl);
+            console.log('LoginHandler: AJAX Data:', ajaxData);
+            
             $.ajax({
                 url: config.ajaxUrl,
                 type: 'POST',
                 data: ajaxData,
+                dataType: 'json',
                 success: (response) => {
+                    console.log('LoginHandler: AJAX Success:', response);
                     if (response.success) {
                         // Show success message
                         $form.find('.login-header').after('<div class="login-success">' + (response.data.message || 'Giriş başarılı. Yönlendiriliyorsunuz...') + '</div>');
@@ -1536,7 +1556,7 @@
                         }, 1000);
                     } else {
                         // Show error message
-                        $form.find('.login-header').after('<div class="login-error">' + response.data.message + '</div>');
+                        $form.find('.login-header').after('<div class="login-error">' + (response.data ? response.data.message : 'Giriş hatası') + '</div>');
                         
                         // Reset button
                         $submitBtn.prop('disabled', false);
@@ -1549,7 +1569,8 @@
                         $form.find('.login-loading').hide();
                     }
                 },
-                error: () => {
+                error: (xhr, status, error) => {
+                    console.log('LoginHandler: AJAX Error:', xhr, status, error);
                     // Show error message
                     $form.find('.login-header').after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
                     
@@ -1570,14 +1591,38 @@
     // Initialize everything when DOM is ready
     $(document).ready(() => {
         try {
-            // Initialize core modules
-            dashboard.init();
-            forms.init();
-            navigation.init();
-            dataTables.init();
-            performance.init();
-            sessionManager.init();
-            loginHandler.init();
+            console.log('RepresentativePanel: DOM ready, initializing...');
+            console.log('RepresentativePanel: Config', config);
+            
+            // Initialize core modules safely
+            const isLoginPage = $('body').hasClass('login-page') || $('.insurance-crm-login-form').length > 0;
+            const isDashboardPage = $('body').hasClass('dashboard-page') || $('.dashboard-container').length > 0;
+            
+            console.log('RepresentativePanel: Page detection - isLoginPage:', isLoginPage, 'isDashboardPage:', isDashboardPage);
+            
+            const modules = [
+                { name: 'loginHandler', module: loginHandler, condition: true }, // Always init login handler
+                { name: 'forms', module: forms, condition: true }, // Always init forms
+                { name: 'navigation', module: navigation, condition: !isLoginPage }, // Skip on login page
+                { name: 'dashboard', module: dashboard, condition: isDashboardPage }, // Only on dashboard
+                { name: 'dataTables', module: dataTables, condition: isDashboardPage }, // Only on dashboard
+                { name: 'performance', module: performance, condition: true }, // Always init
+                { name: 'sessionManager', module: sessionManager, condition: !isLoginPage } // Skip on login page
+            ];
+            
+            modules.forEach(({ name, module, condition }) => {
+                if (condition) {
+                    try {
+                        console.log(`RepresentativePanel: Initializing ${name}...`);
+                        module.init();
+                        console.log(`RepresentativePanel: ${name} initialized successfully`);
+                    } catch (error) {
+                        console.error(`RepresentativePanel: Error initializing ${name}:`, error);
+                    }
+                } else {
+                    console.log(`RepresentativePanel: Skipping ${name} - condition not met`);
+                }
+            });
 
             // Custom initialization based on page
             const currentView = new URLSearchParams(window.location.search).get('view') || 'dashboard';
