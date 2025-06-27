@@ -2423,6 +2423,7 @@ add_action('init', 'insurance_crm_add_shortcodes');
  * Login işlemini yönet
  */
 function insurance_crm_process_login() {
+    // Only process if this is a traditional form submission with the specific trigger field
     if (isset($_POST['insurance_crm_login']) && isset($_POST['insurance_crm_login_nonce'])) {
         if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
             error_log('Insurance CRM Login Error: Invalid nonce');
@@ -2486,19 +2487,39 @@ add_action('init', 'insurance_crm_process_login', 5);
  * AJAX Login Handler for modern login experience
  */
 function insurance_crm_ajax_login() {
-    // Verify nonce - check both possible nonce fields for compatibility
-    if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login') && 
-        !wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
+    error_log('Insurance CRM AJAX Login: Request received');
+    error_log('Insurance CRM AJAX Login: POST data (without password): ' . print_r(array_merge($_POST, ['password' => '[HIDDEN]']), true));
+    
+    // More flexible nonce verification - check multiple possible nonce fields
+    $nonce_valid = false;
+    
+    // Check form nonce
+    if (!empty($_POST['insurance_crm_login_nonce']) && 
+        wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
+        $nonce_valid = true;
+        error_log('Insurance CRM AJAX Login: Form nonce valid');
+    }
+    
+    // Check AJAX nonce
+    if (!$nonce_valid && !empty($_POST['nonce']) && 
+        wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
+        $nonce_valid = true;
+        error_log('Insurance CRM AJAX Login: AJAX nonce valid');
+    }
+    
+    if (!$nonce_valid) {
+        error_log('Insurance CRM AJAX Login: Nonce verification failed');
         wp_send_json_error(array(
-            'message' => 'Güvenlik doğrulaması başarısız.'
+            'message' => 'Güvenlik doğrulaması başarısız. Sayfayı yenileyin ve tekrar deneyin.'
         ));
     }
     
-    $username = sanitize_user($_POST['username']);
-    $password = $_POST['password'];
-    $remember = isset($_POST['remember']) ? true : false;
+    $username = sanitize_user($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $remember = isset($_POST['remember']) ? (bool)$_POST['remember'] : false;
     
     if (empty($username) || empty($password)) {
+        error_log('Insurance CRM AJAX Login: Empty username or password');
         wp_send_json_error(array(
             'message' => 'Kullanıcı adı ve şifre gereklidir.'
         ));
@@ -2509,6 +2530,7 @@ function insurance_crm_ajax_login() {
         $user_data = get_user_by('email', $username);
         if ($user_data) {
             $username = $user_data->user_login;
+            error_log('Insurance CRM AJAX Login: Email converted to username');
         }
     }
     
@@ -2553,28 +2575,35 @@ function insurance_crm_ajax_login() {
     
     error_log('Insurance CRM AJAX Login Success: User ID ' . $user->ID);
     
-    // Get the dashboard page URL - ensure it's a full absolute URL
-    $dashboard_url = home_url('/temsilci-paneli/');
+    // Get the dashboard page URL with multiple fallback methods
+    $dashboard_url = '';
     
-    // Alternative: check if page exists and get its URL
+    // Method 1: Check if temsilci-paneli page exists
     $dashboard_page = get_page_by_path('temsilci-paneli');
     if ($dashboard_page) {
         $dashboard_url = get_permalink($dashboard_page->ID);
+        error_log('Insurance CRM AJAX Login: Dashboard URL from page: ' . $dashboard_url);
     }
     
-    // Ensure URL is absolute
-    if (!filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
+    // Method 2: Fallback to home_url construction
+    if (empty($dashboard_url) || !filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
         $dashboard_url = home_url('/temsilci-paneli/');
+        error_log('Insurance CRM AJAX Login: Dashboard URL from home_url: ' . $dashboard_url);
     }
     
-    error_log('Insurance CRM AJAX Login: Redirecting to ' . $dashboard_url);
+    // Method 3: Last resort - try direct path
+    if (!filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
+        $dashboard_url = site_url('/temsilci-paneli/');
+        error_log('Insurance CRM AJAX Login: Dashboard URL from site_url: ' . $dashboard_url);
+    }
+    
+    error_log('Insurance CRM AJAX Login: Final redirect URL: ' . $dashboard_url);
     
     wp_send_json_success(array(
         'message' => 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...',
         'redirect' => $dashboard_url,
         'user_id' => $user->ID,
-        'user_name' => $user->display_name,
-        'redirect_delay' => 1500 // Add delay hint for client
+        'user_name' => $user->display_name
     ));
 }
 add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');

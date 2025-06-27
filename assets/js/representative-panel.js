@@ -1524,13 +1524,15 @@
             };
             
             // Add form nonce if available
-            if ($loginNonce.length) {
+            if ($loginNonce.length && $loginNonce.val()) {
                 ajaxData.insurance_crm_login_nonce = $loginNonce.val();
+                console.log('LoginHandler: Form nonce added');
             }
             
             // Add config nonce if available
             if (config.nonce) {
                 ajaxData.nonce = config.nonce;
+                console.log('LoginHandler: Config nonce added');
             }
             
             console.log('LoginHandler: AJAX URL:', config.ajaxUrl);
@@ -1544,52 +1546,26 @@
                 timeout: 30000, // 30 second timeout
                 success: (response) => {
                     console.log('LoginHandler: AJAX Success:', response);
-                    if (response.success && response.data) {
+                    
+                    if (response.success && response.data && response.data.redirect) {
                         // Show success message
                         this.showLoginMessage($form, response.data.message || 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...', 'success');
                         
                         // Hide loading but keep button disabled during redirect
                         $form.find('.login-loading').hide();
                         
-                        // Get redirect URL with fallbacks
-                        let redirectUrl = response.data.redirect;
-                        if (!redirectUrl) {
-                            // Create full URL for dashboard
-                            redirectUrl = window.location.origin + '/temsilci-paneli/';
-                            console.warn('LoginHandler: No redirect URL in response, using default:', redirectUrl);
-                        }
-                        
+                        const redirectUrl = response.data.redirect;
                         console.log('LoginHandler: Redirecting to:', redirectUrl);
                         
-                        // Allow more time for session to be established server-side
+                        // Direct redirect without delay for better UX
                         setTimeout(() => {
-                            console.log('LoginHandler: Attempting redirect after session establishment...');
-                            
-                            // Single, reliable redirect method
+                            console.log('LoginHandler: Performing redirect...');
                             window.location.href = redirectUrl;
-                            
-                            // Fallback check - if redirect doesn't happen within 3 seconds
-                            setTimeout(function() {
-                                if (window.location.href.indexOf('temsilci-girisi') !== -1) {
-                                    console.warn('LoginHandler: Primary redirect failed, trying alternative methods');
-                                    
-                                    // Try replace method
-                                    try {
-                                        window.location.replace(redirectUrl);
-                                    } catch (e) {
-                                        console.error('LoginHandler: Replace method failed:', e);
-                                        // Last resort: show manual link with proper message
-                                        this.showLoginMessage($form, 'Giriş başarılı! Yönlendirme yapılamadı. <a href="' + redirectUrl + '" style="color: #fff; text-decoration: underline;">Dashboard\'a gitmek için buraya tıklayın</a>', 'success');
-                                        this.resetLoginForm($form, $submitBtn);
-                                    }
-                                }
-                            }.bind(this), 3000);
-                            
-                        }, 1500); // Increased delay to ensure session is established
+                        }, 1000); // Short delay for user to see success message
                         
                     } else {
                         console.error('LoginHandler: Invalid success response:', response);
-                        // Show error message - check for specific error in response
+                        // Handle invalid success response as error
                         let errorMessage = 'Giriş işlemi başarısız oldu.';
                         if (response.data && response.data.message) {
                             errorMessage = response.data.message;
@@ -1605,42 +1581,38 @@
                     console.error('LoginHandler: AJAX Error:', {xhr, status, error});
                     console.error('LoginHandler: Response Text:', xhr.responseText);
                     
-                    let errorMessage = 'Giriş işlemi başarısız oldu. Lütfen bilgilerinizi kontrol edin.';
+                    let errorMessage = 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
                     
-                    // More specific error messages based on response
-                    if (status === 'timeout') {
+                    // Check for server error response first
+                    if (xhr.responseJSON && !xhr.responseJSON.success) {
+                        if (xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                            errorMessage = xhr.responseJSON.data.message;
+                        }
+                    } 
+                    // Handle network/connection errors
+                    else if (status === 'timeout') {
                         errorMessage = 'İstek zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
                     } else if (xhr.status === 0) {
                         errorMessage = 'İnternet bağlantınızı kontrol edin ve tekrar deneyin.';
                     } else if (xhr.status === 403) {
-                        errorMessage = 'Erişim izniniz bulunmuyor. Bilgilerinizi kontrol edin.';
+                        errorMessage = 'Güvenlik doğrulaması başarısız. Sayfayı yenileyin ve tekrar deneyin.';
                     } else if (xhr.status >= 500) {
                         errorMessage = 'Sunucu hatası oluştu. Lütfen bir süre sonra tekrar deneyin.';
-                    } else if (xhr.responseJSON) {
-                        // Check for WordPress AJAX error response
-                        if (xhr.responseJSON.data && xhr.responseJSON.data.message) {
-                            errorMessage = xhr.responseJSON.data.message;
-                        } else if (xhr.responseJSON.message) {
-                            errorMessage = xhr.responseJSON.message;
-                        } else if (!xhr.responseJSON.success) {
-                            errorMessage = 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
-                        }
-                    } else if (xhr.responseText) {
-                        // Try to parse text response for error messages
+                    }
+                    // Try to parse response text if no JSON response
+                    else if (xhr.responseText) {
                         try {
                             const response = JSON.parse(xhr.responseText);
                             if (response.data && response.data.message) {
                                 errorMessage = response.data.message;
                             }
                         } catch (e) {
-                            // If not JSON, keep default message
-                            errorMessage = 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
+                            // Keep default message if parsing fails
+                            console.log('LoginHandler: Could not parse response text');
                         }
                     }
                     
                     this.showLoginMessage($form, errorMessage, 'error');
-                    
-                    // Reset form so user can try again
                     this.resetLoginForm($form, $submitBtn);
                 }
             });
