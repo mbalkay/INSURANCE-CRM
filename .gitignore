@@ -1,0 +1,25 @@
+# Test files - remove before production
+test-enhancements.php
+
+# WordPress core files
+wp-config.php
+wp-content/uploads/
+wp-content/cache/
+
+# Development files
+.DS_Store
+*.log
+*.tmp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node modules if any
+node_modules/
+
+# Backup files
+*.bak
+*.backup

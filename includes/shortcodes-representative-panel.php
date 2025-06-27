@@ -129,7 +129,7 @@ function insurance_crm_representative_login_shortcode() {
                     </div>
                 </div>
                 
-                <?php wp_nonce_field('insurance_crm_login', 'insurance_crm_login_nonce'); ?>
+                <?php wp_nonce_field('insurance_crm_ajax_login', 'login_nonce'); ?>
             </form>
             
             <div class="login-footer">
@@ -255,6 +255,19 @@ function insurance_crm_representative_login_shortcode() {
         text-align: center;
         animation: shake 0.3s ease;
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
+    }
+
+    .login-success {
+        background: #f0fdf4;
+        color: #16a34a;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #16a34a;
+        font-size: 14px;
+        text-align: center;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 2px 8px rgba(22, 163, 74, 0.1);
     }
 
     @keyframes shake {
@@ -484,31 +497,51 @@ function insurance_crm_representative_login_shortcode() {
             }
         });
 
-        // Form gönderimi
+        // Form gönderimi - simplified approach using new simple AJAX handler
         $("#loginform").on("submit", function(e) {
             e.preventDefault();
             const $button = $("#wp-submit");
             $button.addClass('loading').prop("disabled", true);
             $(".login-loading").show();
-            $(".login-error").remove();
+            $(".login-error, .login-success").remove();
 
+            // Use simplified AJAX login - single step, no complex nonce fetching
             $.ajax({
                 url: '<?php echo admin_url('admin-ajax.php'); ?>',
                 type: 'POST',
-                data: $(this).serialize() + '&action=insurance_crm_login',
+                data: $("#loginform").serialize() + '&action=insurance_crm_simple_ajax_login',
+                dataType: 'json',
                 success: function(response) {
-                    if (response.success) {
-                        window.location.href = response.data.redirect;
+                    console.log('AJAX Response:', response);
+                    if (response.success && response.data) {
+                        var redirectUrl = response.data.redirect || response.data.redirect_url;
+                        if (redirectUrl) {
+                            console.log('Redirecting to:', redirectUrl);
+                            $(".login-header").after('<div class="login-success">' + (response.data.message || 'Giriş başarılı!') + '</div>');
+                            
+                            setTimeout(function() {
+                                window.location.href = redirectUrl;
+                            }, 800);
+                        } else {
+                            console.log('No redirect URL in response:', response);
+                            $(".login-header").after('<div class="login-error">Yönlendirme URL\'si bulunamadı.</div>');
+                            $button.removeClass('loading').prop("disabled", false);
+                            $(".login-loading").hide();
+                        }
                     } else {
-                        $(".login-header").after('<div class="login-error">' + response.data.message + '</div>');
+                        console.log('Invalid response format:', response);
+                        $(".login-header").after('<div class="login-error">' + (response.data && response.data.message ? response.data.message : 'Giriş başarısız.') + '</div>');
                         $button.removeClass('loading').prop("disabled", false);
                         $(".login-loading").hide();
                     }
                 },
-                error: function() {
-                    $(".login-header").after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
-                    $button.removeClass('loading').prop("disabled", false);
-                    $(".login-loading").hide();
+                error: function(xhr, status, error) {
+                    console.log('AJAX Error:', xhr.responseText);
+                    // On AJAX error, fall back to traditional form submission
+                    $(".login-header").after('<div class="login-error">AJAX giriş başarısız. Geleneksel giriş deneniyor...</div>');
+                    
+                    // Remove the action parameter and let form submit naturally
+                    $("#loginform").off('submit').submit();
                 }
             });
         });
@@ -543,47 +576,7 @@ function hex2rgb($hex) {
     );
 }
 
-// AJAX Login Handler - Düzeltilmiş versiyon
-add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_handle_login');
-function insurance_crm_handle_login() {
-    check_ajax_referer('insurance_crm_login', 'insurance_crm_login_nonce');
-
-    $credentials = array(
-        'user_login'    => sanitize_text_field($_POST['username']),
-        'user_password' => $_POST['password'],
-        'remember'      => isset($_POST['remember']) && $_POST['remember'] === 'on' ? true : false
-    );
-
-    $user = wp_signon($credentials, false);
-
-    if (is_wp_error($user)) {
-        error_log('Insurance CRM Login Error: ' . $user->get_error_message());
-        wp_send_json_error(array('message' => $user->get_error_message()));
-    } else {
-        if (in_array('administrator', (array)$user->roles)) {
-            wp_send_json_success(array('redirect' => home_url('/boss-panel/')));
-        } elseif (in_array('insurance_representative', (array)$user->roles)) {
-            global $wpdb;
-            // SQL sorgusunu düzelt - hata burada olabilir
-            $status = $wpdb->get_var($wpdb->prepare(
-                "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
-                $user->ID
-            ));
-
-            error_log('Insurance CRM Login: User status for ID ' . $user->ID . ' is: ' . ($status ? $status : 'not found'));
-
-            if ($status === 'active') {
-                wp_send_json_success(array('redirect' => home_url('/temsilci-paneli/')));
-            } else {
-                wp_send_json_error(array('message' => 'Hesabınız pasif durumda. Lütfen yöneticiniz ile iletişime geçin.'));
-            }
-        } else {
-            wp_send_json_error(array('message' => 'Bu kullanıcı müşteri temsilcisi veya yönetici değil.'));
-        }
-    }
-
-    wp_die();
-}
+// AJAX Login Handler - Removed duplicate, using main handler in functions.php
 
 // Shortcode'ları kaydet
 add_shortcode('temsilci_dashboard', 'insurance_crm_representative_dashboard_shortcode');

@@ -10,6 +10,13 @@ if (!defined('WPINC')) {
     die;
 }
 
+// Perform instant license check on admin dashboard access
+global $insurance_crm_license_manager;
+if ($insurance_crm_license_manager) {
+    error_log('[LISANS DEBUG] Admin dashboard access - performing instant license check');
+    $insurance_crm_license_manager->perform_license_check();
+}
+
 // Son 30 günlük istatistikleri al
 $start_date = date('Y-m-d', strtotime('-30 days'));
 $end_date = date('Y-m-d');
