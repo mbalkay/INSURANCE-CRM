@@ -118,7 +118,7 @@ function insurance_crm_representative_login_shortcode() {
                 </div>
 
                 <div class="form-group">
-                    <button type="submit" name="insurance-crm-login" class="login-button" id="wp-submit">
+                    <button type="submit" class="login-button" id="wp-submit">
                         <span class="button-text">Giriş Yap</span>
                         <span class="button-loading" style="display:none;">
                             <i class="dashicons dashicons-update spin"></i>
