@@ -1557,11 +1557,8 @@
                         const redirectUrl = response.data.redirect;
                         console.log('LoginHandler: Redirecting to:', redirectUrl);
                         
-                        // Direct redirect without delay for better UX
-                        setTimeout(() => {
-                            console.log('LoginHandler: Performing redirect...');
-                            window.location.href = redirectUrl;
-                        }, 1000); // Short delay for user to see success message
+                        // Multiple redirect approaches for better reliability
+                        this.performReliableRedirect(redirectUrl);
                         
                     } else {
                         console.error('LoginHandler: Invalid success response:', response);
@@ -1643,6 +1640,60 @@
                 $submitBtn.val('Giriş Yap');
             }
             $form.find('.login-loading').hide();
+        },
+        
+        performReliableRedirect(redirectUrl) {
+            console.log('LoginHandler: Starting reliable redirect to:', redirectUrl);
+            
+            // Method 1: Immediate redirect attempt
+            setTimeout(() => {
+                console.log('LoginHandler: Attempting immediate redirect...');
+                try {
+                    window.location.href = redirectUrl;
+                } catch (error) {
+                    console.error('LoginHandler: Immediate redirect failed:', error);
+                    this.attemptAlternativeRedirect(redirectUrl);
+                }
+            }, 800);
+            
+            // Method 2: Fallback after 3 seconds
+            setTimeout(() => {
+                console.log('LoginHandler: Attempting fallback redirect...');
+                this.attemptAlternativeRedirect(redirectUrl);
+            }, 3000);
+        },
+        
+        attemptAlternativeRedirect(redirectUrl) {
+            console.log('LoginHandler: Attempting alternative redirect methods...');
+            
+            // Try window.location.replace
+            try {
+                window.location.replace(redirectUrl);
+                return;
+            } catch (error) {
+                console.error('LoginHandler: location.replace failed:', error);
+            }
+            
+            // Try form submission approach
+            try {
+                const form = document.createElement('form');
+                form.method = 'GET';
+                form.action = redirectUrl;
+                document.body.appendChild(form);
+                form.submit();
+                return;
+            } catch (error) {
+                console.error('LoginHandler: Form submission redirect failed:', error);
+            }
+            
+            // Final fallback - page reload with hash
+            try {
+                const url = new URL(redirectUrl);
+                window.location.hash = '#dashboard';
+                window.location.reload();
+            } catch (error) {
+                console.error('LoginHandler: All redirect methods failed:', error);
+            }
         }
     };
 

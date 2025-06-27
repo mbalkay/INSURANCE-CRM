@@ -2575,7 +2575,7 @@ function insurance_crm_ajax_login() {
     
     error_log('Insurance CRM AJAX Login Success: User ID ' . $user->ID);
     
-    // Get the dashboard page URL with multiple fallback methods
+    // Get the dashboard page URL with multiple robust fallback methods
     $dashboard_url = '';
     
     // Method 1: Check if temsilci-paneli page exists
@@ -2585,25 +2585,36 @@ function insurance_crm_ajax_login() {
         error_log('Insurance CRM AJAX Login: Dashboard URL from page: ' . $dashboard_url);
     }
     
-    // Method 2: Fallback to home_url construction
+    // Method 2: Try using the shortcode URL approach
     if (empty($dashboard_url) || !filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
         $dashboard_url = home_url('/temsilci-paneli/');
         error_log('Insurance CRM AJAX Login: Dashboard URL from home_url: ' . $dashboard_url);
     }
     
-    // Method 3: Last resort - try direct path
+    // Method 3: Try site_url approach
     if (!filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
         $dashboard_url = site_url('/temsilci-paneli/');
         error_log('Insurance CRM AJAX Login: Dashboard URL from site_url: ' . $dashboard_url);
     }
     
+    // Method 4: Add query parameter for forcing dashboard display
+    if (strpos($dashboard_url, '?') !== false) {
+        $dashboard_url .= '&force_dashboard=1';
+    } else {
+        $dashboard_url .= '?force_dashboard=1';
+    }
+    
     error_log('Insurance CRM AJAX Login: Final redirect URL: ' . $dashboard_url);
+    
+    // Force session write to ensure user is logged in before redirect
+    wp_cache_flush();
     
     wp_send_json_success(array(
         'message' => 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...',
         'redirect' => $dashboard_url,
         'user_id' => $user->ID,
-        'user_name' => $user->display_name
+        'user_name' => $user->display_name,
+        'timestamp' => time() // Add timestamp to prevent caching issues
     ));
 }
 add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');
