@@ -1466,8 +1466,8 @@
         },
         
         bindEvents() {
-            // Handle AJAX login form submission
-            $(document).on('submit', '.insurance-crm-login-form', this.handleLogin.bind(this));
+            // Handle AJAX login form submission - target both class and ID
+            $(document).on('submit', '.insurance-crm-login-form, #loginform', this.handleLogin.bind(this));
         },
         
         handleLogin(e) {
@@ -1478,6 +1478,7 @@
             const $username = $form.find('input[name="username"]');
             const $password = $form.find('input[name="password"]');
             const $remember = $form.find('input[name="remember"]');
+            const $loginNonce = $form.find('input[name="insurance_crm_login_nonce"]');
             
             // Validate inputs
             if (!$username.val().trim() || !$password.val().trim()) {
@@ -1486,38 +1487,84 @@
             }
             
             // Disable submit button
-            $submitBtn.prop('disabled', true).val('Giriş yapılıyor...');
+            $submitBtn.prop('disabled', true);
+            
+            // Update button text if it's a button element
+            if ($submitBtn.is('button')) {
+                $submitBtn.find('.button-text').hide();
+                $submitBtn.find('.button-loading').show();
+            } else {
+                $submitBtn.val('Giriş yapılıyor...');
+            }
+            
+            // Show loading indicator
+            $form.find('.login-loading').show();
             
             // Clear previous errors
-            $form.find('.error-message').remove();
+            $form.find('.login-error').remove();
+            
+            // Prepare data - include both nonce types for compatibility
+            const ajaxData = {
+                action: 'insurance_crm_login',
+                username: $username.val(),
+                password: $password.val(),
+                remember: $remember.is(':checked')
+            };
+            
+            // Add form nonce if available
+            if ($loginNonce.length) {
+                ajaxData.insurance_crm_login_nonce = $loginNonce.val();
+            }
+            
+            // Add config nonce if available
+            if (config.nonce) {
+                ajaxData.nonce = config.nonce;
+            }
             
             $.ajax({
                 url: config.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'insurance_crm_login',
-                    username: $username.val(),
-                    password: $password.val(),
-                    remember: $remember.is(':checked'),
-                    nonce: config.nonce
-                },
+                data: ajaxData,
                 success: (response) => {
                     if (response.success) {
-                        utils.showNotification(response.data.message, 'success');
+                        // Show success message
+                        $form.find('.login-header').after('<div class="login-success">' + (response.data.message || 'Giriş başarılı. Yönlendiriliyorsunuz...') + '</div>');
+                        
                         // Redirect to dashboard
                         setTimeout(() => {
                             window.location.href = response.data.redirect;
                         }, 1000);
                     } else {
-                        utils.showNotification(response.data.message, 'error');
-                        $submitBtn.prop('disabled', false).val('Giriş Yap');
+                        // Show error message
+                        $form.find('.login-header').after('<div class="login-error">' + response.data.message + '</div>');
+                        
+                        // Reset button
+                        $submitBtn.prop('disabled', false);
+                        if ($submitBtn.is('button')) {
+                            $submitBtn.find('.button-text').show();
+                            $submitBtn.find('.button-loading').hide();
+                        } else {
+                            $submitBtn.val('Giriş Yap');
+                        }
+                        $form.find('.login-loading').hide();
                     }
                 },
                 error: () => {
-                    utils.showNotification('Giriş işlemi sırasında bir hata oluştu.', 'error');
-                    $submitBtn.prop('disabled', false).val('Giriş Yap');
+                    // Show error message
+                    $form.find('.login-header').after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
+                    
+                    // Reset button
+                    $submitBtn.prop('disabled', false);
+                    if ($submitBtn.is('button')) {
+                        $submitBtn.find('.button-text').show();
+                        $submitBtn.find('.button-loading').hide();
+                    } else {
+                        $submitBtn.val('Giriş Yap');
+                    }
+                    $form.find('.login-loading').hide();
                 }
             });
+        }
         }
     };
 

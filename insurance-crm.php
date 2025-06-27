@@ -2486,8 +2486,9 @@ add_action('init', 'insurance_crm_process_login', 5);
  * AJAX Login Handler for modern login experience
  */
 function insurance_crm_ajax_login() {
-    // Verify nonce
-    if (!wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
+    // Verify nonce - check both possible nonce fields for compatibility
+    if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login') && 
+        !wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
         wp_send_json_error(array(
             'message' => 'Güvenlik doğrulaması başarısız.'
         ));
