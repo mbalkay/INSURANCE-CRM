@@ -1478,6 +1478,7 @@
         handleLogin(e) {
             console.log('LoginHandler: Form submission detected');
             e.preventDefault();
+            e.stopPropagation(); // Prevent any other handlers from interfering
             
             const $form = $(e.target);
             console.log('LoginHandler: Form element found', $form.length);
@@ -1490,6 +1491,9 @@
             
             console.log('LoginHandler: Form elements found - submit:', $submitBtn.length, 'username:', $username.length, 'password:', $password.length);
             
+            // Clear any previous messages
+            $form.find('.login-error, .login-success').remove();
+            
             // Validate inputs
             if (!$username.val().trim() || !$password.val().trim()) {
                 console.log('LoginHandler: Validation failed - empty fields');
@@ -1501,8 +1505,8 @@
                 return;
             }
             
-            // Disable submit button
-            $submitBtn.prop('disabled', true);
+            // Disable submit button and show loading state
+            $submitBtn.prop('disabled', true).addClass('logging-in');
             
             // Update button text if it's a button element
             if ($submitBtn.is('button')) {
@@ -1514,9 +1518,6 @@
             
             // Show loading indicator
             $form.find('.login-loading').show();
-            
-            // Clear previous errors
-            $form.find('.login-error').remove();
             
             // Prepare data - include both nonce types for compatibility
             const ajaxData = {
@@ -1550,23 +1551,28 @@
                         // Show success message
                         $form.find('.login-header').after('<div class="login-success">' + (response.data.message || 'Giriş başarılı. Yönlendiriliyorsunuz...') + '</div>');
                         
-                        // Redirect to dashboard
+                        // Hide loading but keep button disabled during redirect
+                        $form.find('.login-loading').hide();
+                        
+                        // Redirect to dashboard with better error handling
+                        const redirectUrl = response.data.redirect || '/temsilci-paneli/';
+                        console.log('LoginHandler: Redirecting to:', redirectUrl);
+                        
                         setTimeout(() => {
-                            window.location.href = response.data.redirect;
-                        }, 1000);
+                            try {
+                                window.location.href = redirectUrl;
+                            } catch (e) {
+                                console.error('LoginHandler: Redirect failed:', e);
+                                // Fallback - try different redirect method
+                                window.location.replace(redirectUrl);
+                            }
+                        }, 1500);
                     } else {
                         // Show error message
                         $form.find('.login-header').after('<div class="login-error">' + (response.data ? response.data.message : 'Giriş hatası') + '</div>');
                         
-                        // Reset button
-                        $submitBtn.prop('disabled', false);
-                        if ($submitBtn.is('button')) {
-                            $submitBtn.find('.button-text').show();
-                            $submitBtn.find('.button-loading').hide();
-                        } else {
-                            $submitBtn.val('Giriş Yap');
-                        }
-                        $form.find('.login-loading').hide();
+                        // Reset form only on error
+                        this.resetLoginForm($form, $submitBtn);
                     }
                 },
                 error: (xhr, status, error) => {
@@ -1574,17 +1580,22 @@
                     // Show error message
                     $form.find('.login-header').after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
                     
-                    // Reset button
-                    $submitBtn.prop('disabled', false);
-                    if ($submitBtn.is('button')) {
-                        $submitBtn.find('.button-text').show();
-                        $submitBtn.find('.button-loading').hide();
-                    } else {
-                        $submitBtn.val('Giriş Yap');
-                    }
-                    $form.find('.login-loading').hide();
+                    // Reset form only on error
+                    this.resetLoginForm($form, $submitBtn);
                 }
             });
+        },
+        
+        resetLoginForm($form, $submitBtn) {
+            // Reset button state
+            $submitBtn.prop('disabled', false).removeClass('logging-in');
+            if ($submitBtn.is('button')) {
+                $submitBtn.find('.button-text').show();
+                $submitBtn.find('.button-loading').hide();
+            } else {
+                $submitBtn.val('Giriş Yap');
+            }
+            $form.find('.login-loading').hide();
         }
     };
 
