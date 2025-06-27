@@ -35,20 +35,10 @@ if (!in_array('insurance_representative', (array)$user->roles)) {
 // *** ENHANCED LICENSE VALIDATION ***
 global $insurance_crm_license_manager;
 
-// Perform license check on dashboard access - Günde bir kez yapılır
+// Perform instant license check on dashboard access - Real-time validation
 if ($insurance_crm_license_manager) {
-    // Son lisans kontrolü zamanını kontrol et
-    $last_license_check = get_transient('insurance_crm_last_license_check');
-    $today = date('Y-m-d');
-    
-    // Eğer bugün henüz kontrol edilmediyse
-    if ($last_license_check !== $today) {
-        error_log('[LISANS DEBUG] Frontend dashboard access - performing daily license check for user: ' . $user->user_login);
-        $insurance_crm_license_manager->perform_license_check();
-        
-        // 24 saat boyunca önbelleğe al (86400 saniye)
-        set_transient('insurance_crm_last_license_check', $today, 86400);
-    }
+    error_log('[LISANS DEBUG] Frontend dashboard access - performing instant license check for user: ' . $user->user_login);
+    $insurance_crm_license_manager->perform_license_check();
     
     // Check if user can access data
     if (!$insurance_crm_license_manager->can_access_data()) {

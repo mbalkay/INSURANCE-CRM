@@ -16,6 +16,9 @@
         ajaxUrl: representativePanel.ajaxUrl,
         nonce: representativePanel.nonce,
         refreshInterval: 300000, // 5 minutes
+        sessionTimeout: 3600000, // 60 minutes (60 * 60 * 1000)
+        sessionCheckInterval: 60000, // 1 minute check
+        activityEvents: ['click', 'mousemove', 'keypress', 'scroll', 'touchstart'],
         animationDuration: 300,
         breakpoints: {
             mobile: 768,
@@ -1360,6 +1363,164 @@
         }
     };
 
+    // Session Management - Auto logout after 60 minutes of inactivity
+    const sessionManager = {
+        lastActivity: Date.now(),
+        timeoutId: null,
+        warningShown: false,
+        
+        init() {
+            this.bindActivityEvents();
+            this.startSessionMonitoring();
+            this.updateLastActivity();
+        },
+        
+        bindActivityEvents() {
+            // Track user activity events
+            config.activityEvents.forEach(event => {
+                document.addEventListener(event, () => {
+                    this.updateLastActivity();
+                }, true);
+            });
+        },
+        
+        updateLastActivity() {
+            this.lastActivity = Date.now();
+            this.warningShown = false;
+            
+            // Clear any existing timeout
+            if (this.timeoutId) {
+                clearTimeout(this.timeoutId);
+            }
+            
+            // Set new timeout for session expiry
+            this.timeoutId = setTimeout(() => {
+                this.checkSessionExpiry();
+            }, config.sessionCheckInterval);
+        },
+        
+        startSessionMonitoring() {
+            // Check session every minute
+            setInterval(() => {
+                this.checkSessionExpiry();
+            }, config.sessionCheckInterval);
+        },
+        
+        checkSessionExpiry() {
+            const inactiveTime = Date.now() - this.lastActivity;
+            const timeUntilExpiry = config.sessionTimeout - inactiveTime;
+            
+            // Show warning 5 minutes before expiry
+            if (timeUntilExpiry <= 300000 && timeUntilExpiry > 0 && !this.warningShown) {
+                this.showSessionWarning(Math.ceil(timeUntilExpiry / 60000));
+                this.warningShown = true;
+            }
+            
+            // Auto logout if session expired
+            if (inactiveTime >= config.sessionTimeout) {
+                this.performAutoLogout();
+            }
+        },
+        
+        showSessionWarning(minutesLeft) {
+            const message = `Oturumunuz ${minutesLeft} dakika sonra otomatik olarak kapanacak. Devam etmek için sayfayı kullanın.`;
+            
+            if (confirm(message + '\n\nOturumu uzatmak için "Tamam"a tıklayın.')) {
+                this.updateLastActivity();
+            }
+        },
+        
+        performAutoLogout() {
+            // Show logout message
+            alert('Güvenlik nedeniyle oturumunuz otomatik olarak kapatıldı.');
+            
+            // Perform logout
+            $.ajax({
+                url: config.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'insurance_crm_auto_logout',
+                    nonce: config.nonce
+                },
+                success: () => {
+                    // Redirect to login page
+                    window.location.href = '/temsilci-girisi/';
+                },
+                error: () => {
+                    // Force redirect even if AJAX fails
+                    window.location.href = '/temsilci-girisi/';
+                }
+            });
+        },
+        
+        getTimeUntilExpiry() {
+            const inactiveTime = Date.now() - this.lastActivity;
+            return Math.max(0, config.sessionTimeout - inactiveTime);
+        }
+    };
+
+    // AJAX Login Handler
+    const loginHandler = {
+        init() {
+            this.bindEvents();
+        },
+        
+        bindEvents() {
+            // Handle AJAX login form submission
+            $(document).on('submit', '.insurance-crm-login-form', this.handleLogin.bind(this));
+        },
+        
+        handleLogin(e) {
+            e.preventDefault();
+            
+            const $form = $(e.target);
+            const $submitBtn = $form.find('input[type="submit"], button[type="submit"]');
+            const $username = $form.find('input[name="username"]');
+            const $password = $form.find('input[name="password"]');
+            const $remember = $form.find('input[name="remember"]');
+            
+            // Validate inputs
+            if (!$username.val().trim() || !$password.val().trim()) {
+                utils.showNotification('Kullanıcı adı ve şifre gereklidir.', 'error');
+                return;
+            }
+            
+            // Disable submit button
+            $submitBtn.prop('disabled', true).val('Giriş yapılıyor...');
+            
+            // Clear previous errors
+            $form.find('.error-message').remove();
+            
+            $.ajax({
+                url: config.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'insurance_crm_login',
+                    username: $username.val(),
+                    password: $password.val(),
+                    remember: $remember.is(':checked'),
+                    nonce: config.nonce
+                },
+                success: (response) => {
+                    if (response.success) {
+                        utils.showNotification(response.data.message, 'success');
+                        // Redirect to dashboard
+                        setTimeout(() => {
+                            window.location.href = response.data.redirect;
+                        }, 1000);
+                    } else {
+                        utils.showNotification(response.data.message, 'error');
+                        $submitBtn.prop('disabled', false).val('Giriş Yap');
+                    }
+                },
+                error: () => {
+                    utils.showNotification('Giriş işlemi sırasında bir hata oluştu.', 'error');
+                    $submitBtn.prop('disabled', false).val('Giriş Yap');
+                }
+            });
+        }
+    };
+
     // Initialize everything when DOM is ready
     $(document).ready(() => {
         try {
@@ -1369,6 +1530,8 @@
             navigation.init();
             dataTables.init();
             performance.init();
+            sessionManager.init();
+            loginHandler.init();
 
             // Custom initialization based on page
             const currentView = new URLSearchParams(window.location.search).get('view') || 'dashboard';
@@ -1419,5 +1582,7 @@
     RepresentativePanel.navigation = navigation;
     RepresentativePanel.dataTables = dataTables;
     RepresentativePanel.performance = performance;
+    RepresentativePanel.sessionManager = sessionManager;
+    RepresentativePanel.loginHandler = loginHandler;
 
 })(jQuery);
