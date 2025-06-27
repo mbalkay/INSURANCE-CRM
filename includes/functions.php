@@ -195,15 +195,15 @@ function handle_insurance_crm_ajax_login() {
     }
     
     // Verify nonce for security - using correct field name from form
-    if (!isset($_POST['insurance_crm_login_nonce'])) {
+    if (!isset($_POST['nonce'])) {
         error_log('AJAX Login: Nonce field missing from POST data');
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız - nonce eksik.'));
         return;
     }
     
-    $nonce_check = wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login');
+    $nonce_check = wp_verify_nonce($_POST['nonce'], 'insurance_crm_login');
     if (!$nonce_check) {
-        error_log('AJAX Login: Nonce verification failed. Nonce: ' . $_POST['insurance_crm_login_nonce']);
+        error_log('AJAX Login: Nonce verification failed. Nonce: ' . $_POST['nonce']);
         wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
         return;
     }
@@ -255,7 +255,7 @@ function handle_insurance_crm_ajax_login() {
         error_log('AJAX Login: Admin login successful, redirecting to boss panel');
         wp_send_json_success(array(
             'message' => 'Giriş başarılı! Boss paneline yönlendiriliyorsunuz...',
-            'redirect' => home_url('/boss-panel/')
+            'redirect_url' => home_url('/boss-panel/')
         ));
         return;
     } elseif (!in_array('insurance_representative', (array)$user->roles)) {
@@ -289,7 +289,7 @@ function handle_insurance_crm_ajax_login() {
     
     wp_send_json_success(array(
         'message' => 'Giriş başarılı! Dashboard\'a yönlendiriliyorsunuz...',
-        'redirect' => $redirect_url
+        'redirect_url' => $redirect_url
     ));
 }
 
