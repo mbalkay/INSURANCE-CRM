@@ -56,9 +56,9 @@ class Insurance_CRM_License_Manager {
         
         // Periodic license check (every 30 minutes)
         add_action('insurance_crm_periodic_license_check', array($this, 'perform_periodic_license_check'));
-        if (!wp_next_scheduled('insurance_crm_periodic_license_check')) {
-            wp_schedule_event(time(), 'insurance_crm_30_minutes', 'insurance_crm_periodic_license_check');
-        }
+        
+        // Clear old 4-hour schedule if exists and set up new 30-minute schedule
+        $this->update_cron_schedule();
         
         // Add custom cron schedule for 30 minutes
         add_filter('cron_schedules', array($this, 'add_custom_cron_schedules'));
@@ -467,6 +467,20 @@ class Insurance_CRM_License_Manager {
             'display' => __('Every 30 Minutes (Insurance CRM License Check)')
         );
         return $schedules;
+    }
+
+    /**
+     * Update cron schedule from 4-hour to 30-minute intervals
+     */
+    private function update_cron_schedule() {
+        // Clear any existing scheduled events
+        wp_clear_scheduled_hook('insurance_crm_periodic_license_check');
+        
+        // Schedule new 30-minute interval
+        if (!wp_next_scheduled('insurance_crm_periodic_license_check')) {
+            wp_schedule_event(time(), 'insurance_crm_30_minutes', 'insurance_crm_periodic_license_check');
+            error_log('[LISANS DEBUG] Updated cron schedule to 30-minute intervals');
+        }
     }
 
     /**
