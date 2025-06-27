@@ -56,111 +56,148 @@ function insurance_crm_redirect_customer_links() {
 }
 add_action('admin_init', 'insurance_crm_redirect_customer_links');
 
-// functions.php dosyasına eklenecek
+// Alternative login form implementation with fallback mechanism
 function temsilci_panel_shortcode() {
     ob_start();
     
-    // Check for timeout or logout messages
-    $message = '';
-    if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
-        $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Oturumunuz 60 dakika hareketsizlik nedeniyle sona erdi. Lütfen tekrar giriş yapın.</div>';
-    } elseif (isset($_GET['logout']) && $_GET['logout'] == '1') {
-        $message = '<div style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #bee5eb;">Güvenli bir şekilde çıkış yaptınız.</div>';
-    } elseif (isset($_GET['error']) && $_GET['error'] == 'license_expired') {
-        $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Lisans süresi dolmuş. Lütfen yöneticinize başvurun.</div>';
+    // Process traditional form submission if POST data is present
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['traditional_login'])) {
+        $login_result = process_traditional_login();
+        if ($login_result['success']) {
+            // Redirect on success
+            echo '<script>window.location.href = "' . esc_js($login_result['redirect']) . '";</script>';
+            return;
+        } else {
+            // Show error message
+            $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">' . esc_html($login_result['message']) . '</div>';
+        }
+    } else {
+        // Check for timeout or logout messages
+        $message = '';
+        if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
+            $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Oturumunuz 60 dakika hareketsizlik nedeniyle sona erdi. Lütfen tekrar giriş yapın.</div>';
+        } elseif (isset($_GET['logout']) && $_GET['logout'] == '1') {
+            $message = '<div style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #bee5eb;">Güvenli bir şekilde çıkış yaptınız.</div>';
+        } elseif (isset($_GET['error']) && $_GET['error'] == 'license_expired') {
+            $message = '<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #f5c6cb;">Lisans süresi dolmuş. Lütfen yöneticinize başvurun.</div>';
+        }
     }
     ?>
-    <div class="login-container" style="max-width: 400px; margin: 50px auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px;">
+    <div class="login-container" style="max-width: 450px; margin: 50px auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px;">
         <div class="login-logo" style="text-align: center; margin-bottom: 30px;">
             <img src="<?php echo get_template_directory_uri(); ?>/assets/images/logo.png" alt="Anadolu Birlik Sigorta" style="max-width: 200px; height: auto;">
             <?php if (!file_exists(get_template_directory() . '/assets/images/logo.png')): ?>
-                <h2 style="color: #2c3e50; font-size: 24px;">Anadolu Birlik Sigorta</h2>
+                <h2 style="color: #2c3e50; font-size: 24px;">Anadolu Birlik Sigorta CRM</h2>
             <?php endif; ?>
         </div>
         <?php echo $message; ?>
         <div class="login-form">
             <h2 style="color: #2c3e50; text-align: center; margin-bottom: 20px; font-size: 22px;">Müşteri Temsilcisi Girişi</h2>
-            <form action="#" method="post" id="temsilci-login-form">
+            
+            <!-- AJAX Login Form -->
+            <form id="ajax-login-form" style="margin-bottom: 20px;">
+                <?php wp_nonce_field('insurance_crm_ajax_login', 'login_nonce'); ?>
                 <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="username" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Kullanıcı Adı</label>
-                    <input type="text" id="username" name="username" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                    <label for="ajax_username" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Kullanıcı Adı</label>
+                    <input type="text" id="ajax_username" name="username" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
                 </div>
                 <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="password" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Şifre</label>
-                    <input type="password" id="password" name="password" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                    <label for="ajax_password" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Şifre</label>
+                    <input type="password" id="ajax_password" name="password" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
                 </div>
                 <div class="form-actions" style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
                     <div class="remember-me">
-                        <input type="checkbox" id="remember" name="remember">
-                        <label for="remember" style="color: #555;">Beni Hatırla</label>
+                        <input type="checkbox" id="ajax_remember" name="remember">
+                        <label for="ajax_remember" style="color: #555;">Beni Hatırla</label>
                     </div>
                     <a href="#" class="forgot-password" style="color: #3498db; text-decoration: none;">Şifremi Unuttum</a>
                 </div>
-                <button type="submit" class="btn-login" style="width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.3s;">Giriş Yap</button>
+                <button type="submit" class="btn-ajax-login" style="width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.3s;">Hızlı Giriş (AJAX)</button>
             </form>
+            
+            <div style="text-align: center; margin: 20px 0; color: #999; font-size: 14px;">── VEYA ──</div>
+            
+            <!-- Traditional Form Login -->
+            <form method="post" id="traditional-login-form">
+                <?php wp_nonce_field('insurance_crm_traditional_login', 'traditional_login_nonce'); ?>
+                <input type="hidden" name="traditional_login" value="1">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label for="trad_username" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Kullanıcı Adı</label>
+                    <input type="text" id="trad_username" name="username" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label for="trad_password" style="display: block; margin-bottom: 5px; color: #555; font-weight: 500;">Şifre</label>
+                    <input type="password" id="trad_password" name="password" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                </div>
+                <div class="form-actions" style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
+                    <div class="remember-me">
+                        <input type="checkbox" id="trad_remember" name="remember">
+                        <label for="trad_remember" style="color: #555;">Beni Hatırla</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn-traditional-login" style="width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.3s;">Geleneksel Giriş</button>
+            </form>
+            
+            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
+                <p>AJAX giriş çalışmıyorsa geleneksel giriş yöntemini deneyin</p>
+            </div>
         </div>
     </div>
     
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('temsilci-login-form').addEventListener('submit', function(e) {
+        // AJAX Login Handler
+        document.getElementById('ajax-login-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const remember = document.getElementById('remember').checked;
+            const username = document.getElementById('ajax_username').value;
+            const password = document.getElementById('ajax_password').value;
+            const remember = document.getElementById('ajax_remember').checked;
             const submitButton = this.querySelector('button[type="submit"]');
+            const nonce = this.querySelector('input[name="login_nonce"]').value;
             
             // Disable button and show loading state
             submitButton.disabled = true;
             submitButton.textContent = 'Giriş yapılıyor...';
             
-            // First get a fresh nonce, then perform login
-            fetch('<?php echo admin_url('admin-ajax.php'); ?>?action=insurance_crm_get_login_nonce&t=' + Date.now(), {
-                method: 'GET'
-            })
-            .then(response => response.json())
-            .then(nonceData => {
-                if (!nonceData.success) {
-                    throw new Error('Nonce alınamadı');
-                }
-                
-                // Create FormData with fresh nonce
-                const formData = new FormData();
-                formData.append('action', 'insurance_crm_login');
-                formData.append('username', username);
-                formData.append('password', password);
-                formData.append('remember', remember ? '1' : '0');
-                formData.append('nonce', nonceData.data.nonce);
-                
-                // AJAX login request
-                return fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                    method: 'POST',
-                    body: formData
-                });
+            // Simple AJAX login - no complex nonce fetching
+            const formData = new FormData();
+            formData.append('action', 'insurance_crm_simple_ajax_login');
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('remember', remember ? '1' : '0');
+            formData.append('login_nonce', nonce);
+            
+            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                method: 'POST',
+                body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Show success message
-                    alert(data.data.message);
-                    // Redirect to dashboard without page refresh
-                    window.location.href = data.data.redirect_url;
+                    alert('Giriş başarılı! Yönlendiriliyorsunuz...');
+                    window.location.href = data.data.redirect;
                 } else {
-                    // Show error message
-                    alert(data.data.message);
+                    alert(data.data.message || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
                     // Re-enable button
                     submitButton.disabled = false;
-                    submitButton.textContent = 'Giriş Yap';
+                    submitButton.textContent = 'Hızlı Giriş (AJAX)';
                 }
             })
             .catch(error => {
-                console.error('Login error:', error);
-                alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                console.error('AJAX Login error:', error);
+                alert('AJAX giriş başarısız. Lütfen geleneksel giriş yöntemini deneyin.');
                 // Re-enable button
                 submitButton.disabled = false;
-                submitButton.textContent = 'Giriş Yap';
+                submitButton.textContent = 'Hızlı Giriş (AJAX)';
             });
+        });
+        
+        // Traditional form gets natural form submission
+        document.getElementById('traditional-login-form').addEventListener('submit', function(e) {
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Giriş yapılıyor...';
         });
     });
     </script>
@@ -169,70 +206,26 @@ function temsilci_panel_shortcode() {
 }
 add_shortcode('temsilci_panel', 'temsilci_panel_shortcode');
 
-// AJAX login handler for representatives
-add_action('wp_ajax_nopriv_insurance_crm_login', 'handle_insurance_crm_ajax_login');
-add_action('wp_ajax_insurance_crm_login', 'handle_insurance_crm_ajax_login');
-
-// AJAX nonce generator for login
-add_action('wp_ajax_nopriv_insurance_crm_get_login_nonce', 'handle_insurance_crm_get_login_nonce');
-add_action('wp_ajax_insurance_crm_get_login_nonce', 'handle_insurance_crm_get_login_nonce');
-
-function handle_insurance_crm_get_login_nonce() {
-    // Generate fresh nonce for login - use correct action name
-    $nonce = wp_create_nonce('insurance_crm_login');
-    wp_send_json_success(array('nonce' => $nonce));
-}
-
-function handle_insurance_crm_ajax_login() {
-    // Log the beginning of the function for debugging
-    error_log('AJAX Login Handler Called - POST data: ' . print_r($_POST, true));
-    
-    // Check if required fields are present
-    if (!isset($_POST['username']) || !isset($_POST['password'])) {
-        error_log('AJAX Login: Missing username or password');
-        wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
-        return;
+// Traditional form login processing function
+function process_traditional_login() {
+    // Verify nonce
+    if (!isset($_POST['traditional_login_nonce']) || !wp_verify_nonce($_POST['traditional_login_nonce'], 'insurance_crm_traditional_login')) {
+        return array('success' => false, 'message' => 'Güvenlik doğrulaması başarısız.');
     }
-    
-    // Verify nonce for security - check both possible field names
-    $nonce_value = '';
-    if (isset($_POST['insurance_crm_login_nonce'])) {
-        $nonce_value = $_POST['insurance_crm_login_nonce'];
-    } elseif (isset($_POST['nonce'])) {
-        $nonce_value = $_POST['nonce'];
-    } else {
-        error_log('AJAX Login: Nonce field missing from POST data');
-        wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız - nonce eksik.'));
-        return;
-    }
-    
-    $nonce_check = wp_verify_nonce($nonce_value, 'insurance_crm_login');
-    if (!$nonce_check) {
-        error_log('AJAX Login: Nonce verification failed. Nonce: ' . $nonce_value);
-        wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
-        return;
-    }
-    
-    error_log('AJAX Login: Nonce verification successful');
     
     $username = sanitize_text_field($_POST['username']);
     $password = $_POST['password'];
-    $remember = isset($_POST['remember']) ? true : false;
-    
-    error_log('AJAX Login: Attempting login for username: ' . $username);
+    $remember = isset($_POST['remember']);
     
     if (empty($username) || empty($password)) {
-        error_log('AJAX Login: Empty username or password after sanitization');
-        wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
-        return;
+        return array('success' => false, 'message' => 'Kullanıcı adı ve şifre gereklidir.');
     }
     
-    // If email is provided, get username
+    // Convert email to username if needed
     if (is_email($username)) {
         $user_data = get_user_by('email', $username);
         if ($user_data) {
             $username = $user_data->user_login;
-            error_log('AJAX Login: Converted email to username: ' . $username);
         }
     }
     
@@ -245,27 +238,93 @@ function handle_insurance_crm_ajax_login() {
     $user = wp_signon($creds, is_ssl());
     
     if (is_wp_error($user)) {
-        error_log('AJAX Login: Authentication failed for user: ' . $username . ' Error: ' . $user->get_error_message());
+        return array('success' => false, 'message' => 'Geçersiz kullanıcı adı veya şifre.');
+    }
+    
+    // Check if user is administrator
+    if (in_array('administrator', (array)$user->roles)) {
+        update_user_meta($user->ID, '_user_last_activity', time());
+        return array('success' => true, 'redirect' => home_url('/boss-panel/'));
+    }
+    
+    // Check if user is insurance representative
+    if (!in_array('insurance_representative', (array)$user->roles)) {
+        wp_logout();
+        return array('success' => false, 'message' => 'Bu sisteme giriş yetkiniz bulunmamaktadır.');
+    }
+    
+    // Check representative status
+    global $wpdb;
+    $rep_status = $wpdb->get_var($wpdb->prepare(
+        "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
+        $user->ID
+    ));
+    
+    if ($rep_status !== 'active') {
+        wp_logout();
+        return array('success' => false, 'message' => 'Hesabınız aktif değil. Lütfen yöneticinize başvurun.');
+    }
+    
+    // Update last activity for session management
+    update_user_meta($user->ID, '_user_last_activity', time());
+    
+    return array('success' => true, 'redirect' => home_url('/temsilci-paneli/'));
+}
+
+// Simple AJAX login handler - single step, no complex nonce fetching
+add_action('wp_ajax_nopriv_insurance_crm_simple_ajax_login', 'handle_simple_ajax_login');
+add_action('wp_ajax_insurance_crm_simple_ajax_login', 'handle_simple_ajax_login');
+
+function handle_simple_ajax_login() {
+    // Verify nonce
+    if (!isset($_POST['login_nonce']) || !wp_verify_nonce($_POST['login_nonce'], 'insurance_crm_ajax_login')) {
+        wp_send_json_error(array('message' => 'Güvenlik doğrulaması başarısız.'));
+        return;
+    }
+    
+    $username = sanitize_text_field($_POST['username']);
+    $password = $_POST['password'];
+    $remember = isset($_POST['remember']) && $_POST['remember'] == '1';
+    
+    if (empty($username) || empty($password)) {
+        wp_send_json_error(array('message' => 'Kullanıcı adı ve şifre gereklidir.'));
+        return;
+    }
+    
+    // Convert email to username if needed
+    if (is_email($username)) {
+        $user_data = get_user_by('email', $username);
+        if ($user_data) {
+            $username = $user_data->user_login;
+        }
+    }
+    
+    $creds = array(
+        'user_login' => $username,
+        'user_password' => $password,
+        'remember' => $remember
+    );
+    
+    $user = wp_signon($creds, is_ssl());
+    
+    if (is_wp_error($user)) {
         wp_send_json_error(array('message' => 'Geçersiz kullanıcı adı veya şifre.'));
         return;
     }
     
-    error_log('AJAX Login: Authentication successful for user ID: ' . $user->ID);
-    
-    // Check if user is administrator or insurance representative
+    // Check if user is administrator
     if (in_array('administrator', (array)$user->roles)) {
-        // Update last activity for session management
         update_user_meta($user->ID, '_user_last_activity', time());
-        
-        error_log('AJAX Login: Admin login successful, redirecting to boss panel');
         wp_send_json_success(array(
             'message' => 'Giriş başarılı! Boss paneline yönlendiriliyorsunuz...',
             'redirect' => home_url('/boss-panel/')
         ));
         return;
-    } elseif (!in_array('insurance_representative', (array)$user->roles)) {
+    }
+    
+    // Check if user is insurance representative
+    if (!in_array('insurance_representative', (array)$user->roles)) {
         wp_logout();
-        error_log('AJAX Login: User does not have required role');
         wp_send_json_error(array('message' => 'Bu sisteme giriş yetkiniz bulunmamaktadır.'));
         return;
     }
@@ -277,11 +336,8 @@ function handle_insurance_crm_ajax_login() {
         $user->ID
     ));
     
-    error_log('AJAX Login: Representative status for user ' . $user->ID . ': ' . $rep_status);
-    
     if ($rep_status !== 'active') {
         wp_logout();
-        error_log('AJAX Login: Representative account is not active');
         wp_send_json_error(array('message' => 'Hesabınız aktif değil. Lütfen yöneticinize başvurun.'));
         return;
     }
@@ -289,12 +345,9 @@ function handle_insurance_crm_ajax_login() {
     // Update last activity for session management
     update_user_meta($user->ID, '_user_last_activity', time());
     
-    $redirect_url = home_url('/temsilci-paneli/');
-    error_log('AJAX Login: Representative login successful, redirecting to: ' . $redirect_url);
-    
     wp_send_json_success(array(
         'message' => 'Giriş başarılı! Dashboard\'a yönlendiriliyorsunuz...',
-        'redirect' => $redirect_url
+        'redirect' => home_url('/temsilci-paneli/')
     ));
 }
 
