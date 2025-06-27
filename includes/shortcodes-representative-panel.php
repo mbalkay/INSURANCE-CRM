@@ -543,36 +543,45 @@ function insurance_crm_representative_login_shortcode() {
                     dataType: 'json',
                     success: function(response) {
                         console.log('AJAX Response:', response); // Debug log
-                        if (response.success && response.data && response.data.redirect) {
-                            console.log('Redirecting to:', response.data.redirect); // Debug log
-                            // Show success message briefly before redirect
-                            $(".login-header").after('<div class="login-success">' + (response.data.message || 'Giriş başarılı!') + '</div>');
-                            
-                            // Multiple fallback methods for redirect
-                            setTimeout(function() {
-                                try {
-                                    // First try: window.location.replace (doesn't add to history)
-                                    window.location.replace(response.data.redirect);
-                                } catch(e) {
-                                    console.log('Replace failed, trying href:', e);
+                        if (response.success && response.data) {
+                            // Check for redirect URL in both possible field names
+                            var redirectUrl = response.data.redirect || response.data.redirect_url;
+                            if (redirectUrl) {
+                                console.log('Redirecting to:', redirectUrl); // Debug log
+                                // Show success message briefly before redirect
+                                $(".login-header").after('<div class="login-success">' + (response.data.message || 'Giriş başarılı!') + '</div>');
+                                
+                                // Multiple fallback methods for redirect
+                                setTimeout(function() {
                                     try {
-                                        // Fallback: window.location.href
-                                        window.location.href = response.data.redirect;
-                                    } catch(e2) {
-                                        console.log('Href failed, trying assign:', e2);
-                                        // Last resort: window.location.assign
-                                        window.location.assign(response.data.redirect);
+                                        // First try: window.location.replace (doesn't add to history)
+                                        window.location.replace(redirectUrl);
+                                    } catch(e) {
+                                        console.log('Replace failed, trying href:', e);
+                                        try {
+                                            // Fallback: window.location.href
+                                            window.location.href = redirectUrl;
+                                        } catch(e2) {
+                                            console.log('Href failed, trying assign:', e2);
+                                            // Last resort: window.location.assign
+                                            window.location.assign(redirectUrl);
+                                        }
                                     }
-                                }
-                            }, 800);
-                            
-                            // Safety fallback after longer delay
-                            setTimeout(function() {
-                                if (window.location.href.indexOf('temsilci-girisi') !== -1) {
-                                    console.log('Still on login page, forcing redirect');
-                                    window.location.href = response.data.redirect;
-                                }
-                            }, 2000);
+                                }, 800);
+                                
+                                // Safety fallback after longer delay
+                                setTimeout(function() {
+                                    if (window.location.href.indexOf('temsilci-girisi') !== -1) {
+                                        console.log('Still on login page, forcing redirect');
+                                        window.location.href = redirectUrl;
+                                    }
+                                }, 2000);
+                            } else {
+                                console.log('No redirect URL in response:', response);
+                                $(".login-header").after('<div class="login-error">Yönlendirme URL\'si bulunamadı.</div>');
+                                $button.removeClass('loading').prop("disabled", false);
+                                $(".login-loading").hide();
+                            }
                         } else {
                             console.log('Invalid response format:', response);
                             $(".login-header").after('<div class="login-error">' + (response.data && response.data.message ? response.data.message : 'Giriş başarısız.') + '</div>');
