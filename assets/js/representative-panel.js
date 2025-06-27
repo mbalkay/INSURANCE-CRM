@@ -11,11 +11,16 @@
     // Global namespace
     window.RepresentativePanel = window.RepresentativePanel || {};
 
-    // Configuration
+    // Configuration - with fallbacks for missing localization
     const config = {
-        ajaxUrl: representativePanel.ajaxUrl,
-        nonce: representativePanel.nonce,
+        ajaxUrl: (typeof representativePanel !== 'undefined' && representativePanel.ajaxUrl) ? 
+                 representativePanel.ajaxUrl : '/wp-admin/admin-ajax.php',
+        nonce: (typeof representativePanel !== 'undefined' && representativePanel.nonce) ? 
+               representativePanel.nonce : '',
         refreshInterval: 300000, // 5 minutes
+        sessionTimeout: 3600000, // 60 minutes (60 * 60 * 1000)
+        sessionCheckInterval: 60000, // 1 minute check
+        activityEvents: ['click', 'mousemove', 'keypress', 'scroll', 'touchstart'],
         animationDuration: 300,
         breakpoints: {
             mobile: 768,
@@ -1360,15 +1365,238 @@
         }
     };
 
+    // Session Management - Auto logout after 60 minutes of inactivity
+    const sessionManager = {
+        lastActivity: Date.now(),
+        timeoutId: null,
+        warningShown: false,
+        
+        init() {
+            this.bindActivityEvents();
+            this.startSessionMonitoring();
+            this.updateLastActivity();
+        },
+        
+        bindActivityEvents() {
+            // Track user activity events
+            config.activityEvents.forEach(event => {
+                document.addEventListener(event, () => {
+                    this.updateLastActivity();
+                }, true);
+            });
+        },
+        
+        updateLastActivity() {
+            this.lastActivity = Date.now();
+            this.warningShown = false;
+            
+            // Clear any existing timeout
+            if (this.timeoutId) {
+                clearTimeout(this.timeoutId);
+            }
+            
+            // Set new timeout for session expiry
+            this.timeoutId = setTimeout(() => {
+                this.checkSessionExpiry();
+            }, config.sessionCheckInterval);
+        },
+        
+        startSessionMonitoring() {
+            // Check session every minute
+            setInterval(() => {
+                this.checkSessionExpiry();
+            }, config.sessionCheckInterval);
+        },
+        
+        checkSessionExpiry() {
+            const inactiveTime = Date.now() - this.lastActivity;
+            const timeUntilExpiry = config.sessionTimeout - inactiveTime;
+            
+            // Show warning 5 minutes before expiry
+            if (timeUntilExpiry <= 300000 && timeUntilExpiry > 0 && !this.warningShown) {
+                this.showSessionWarning(Math.ceil(timeUntilExpiry / 60000));
+                this.warningShown = true;
+            }
+            
+            // Auto logout if session expired
+            if (inactiveTime >= config.sessionTimeout) {
+                this.performAutoLogout();
+            }
+        },
+        
+        showSessionWarning(minutesLeft) {
+            const message = `Oturumunuz ${minutesLeft} dakika sonra otomatik olarak kapanacak. Devam etmek için sayfayı kullanın.`;
+            
+            if (confirm(message + '\n\nOturumu uzatmak için "Tamam"a tıklayın.')) {
+                this.updateLastActivity();
+            }
+        },
+        
+        performAutoLogout() {
+            // Show logout message
+            alert('Güvenlik nedeniyle oturumunuz otomatik olarak kapatıldı.');
+            
+            // Perform logout
+            $.ajax({
+                url: config.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'insurance_crm_auto_logout',
+                    nonce: config.nonce
+                },
+                success: () => {
+                    // Redirect to login page
+                    window.location.href = '/temsilci-girisi/';
+                },
+                error: () => {
+                    // Force redirect even if AJAX fails
+                    window.location.href = '/temsilci-girisi/';
+                }
+            });
+        },
+        
+        getTimeUntilExpiry() {
+            const inactiveTime = Date.now() - this.lastActivity;
+            return Math.max(0, config.sessionTimeout - inactiveTime);
+        }
+    };
+
+    // AJAX Login Handler
+    // AJAX Login Handler - Simplified
+    const loginHandler = {
+        init() {
+            this.bindEvents();
+        },
+        
+        bindEvents() {
+            $(document).on('submit', '.insurance-crm-login-form, #loginform', this.handleLogin.bind(this));
+        },
+        
+        handleLogin(e) {
+            e.preventDefault();
+            
+            const $form = $(e.target);
+            const $submitBtn = $form.find('input[type="submit"], button[type="submit"]');
+            const $username = $form.find('input[name="username"]');
+            const $password = $form.find('input[name="password"]');
+            const $remember = $form.find('input[name="remember"]');
+            const $loginNonce = $form.find('input[name="insurance_crm_login_nonce"]');
+            
+            // Clear any previous messages
+            $form.find('.login-error, .login-success').remove();
+            
+            // Validate inputs
+            if (!$username.val().trim() || !$password.val().trim()) {
+                this.showLoginMessage($form, 'Kullanıcı adı ve şifre gereklidir.', 'error');
+                return;
+            }
+            
+            // Show loading state
+            $submitBtn.prop('disabled', true);
+            if ($submitBtn.is('button')) {
+                $submitBtn.find('.button-text').hide();
+                $submitBtn.find('.button-loading').show();
+            } else {
+                $submitBtn.val('Giriş yapılıyor...');
+            }
+            
+            // Perform AJAX login
+            $.ajax({
+                url: config.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'insurance_crm_login',
+                    username: $username.val(),
+                    password: $password.val(),
+                    remember: $remember.is(':checked'),
+                    insurance_crm_login_nonce: $loginNonce.val()
+                },
+                success: (response) => {
+                    if (response.success && response.data && response.data.redirect) {
+                        this.showLoginMessage($form, response.data.message || 'Giriş başarılı...', 'success');
+                        
+                        // Simple redirect after short delay
+                        setTimeout(() => {
+                            window.location.href = response.data.redirect;
+                        }, 1000);
+                        
+                    } else {
+                        this.handleLoginError($form, $submitBtn, response.data?.message || 'Giriş işlemi başarısız.');
+                    }
+                },
+                error: (xhr) => {
+                    let errorMessage = 'Kullanıcı adı veya şifre hatalı.';
+                    
+                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        errorMessage = xhr.responseJSON.data.message;
+                    }
+                    
+                    this.handleLoginError($form, $submitBtn, errorMessage);
+                }
+            });
+        },
+        
+        showLoginMessage($form, message, type) {
+            // Remove any existing messages
+            $form.find('.login-error, .login-success').remove();
+            
+            // Create new message
+            const messageClass = type === 'error' ? 'login-error' : 'login-success';
+            const $message = $('<div class="' + messageClass + '">' + message + '</div>');
+            
+            // Add message after login header
+            $form.find('.login-header').after($message);
+        },
+        
+        handleLoginError($form, $submitBtn, message) {
+            this.showLoginMessage($form, message, 'error');
+            
+            // Reset button state
+            $submitBtn.prop('disabled', false);
+            if ($submitBtn.is('button')) {
+                $submitBtn.find('.button-text').show();
+                $submitBtn.find('.button-loading').hide();
+            } else {
+                $submitBtn.val('Giriş Yap');
+            }
+        }
+    };
+
     // Initialize everything when DOM is ready
     $(document).ready(() => {
         try {
-            // Initialize core modules
-            dashboard.init();
-            forms.init();
-            navigation.init();
-            dataTables.init();
-            performance.init();
+            console.log('RepresentativePanel: DOM ready, initializing...');
+            console.log('RepresentativePanel: Config', config);
+            
+            // Initialize core modules safely
+            const isLoginPage = $('body').hasClass('login-page') || $('.insurance-crm-login-form').length > 0;
+            const isDashboardPage = $('body').hasClass('dashboard-page') || $('.dashboard-container').length > 0;
+            
+            console.log('RepresentativePanel: Page detection - isLoginPage:', isLoginPage, 'isDashboardPage:', isDashboardPage);
+            
+            const modules = [
+                { name: 'loginHandler', module: loginHandler, condition: true }, // Always init login handler
+                { name: 'forms', module: forms, condition: true }, // Always init forms
+                { name: 'navigation', module: navigation, condition: !isLoginPage }, // Skip on login page
+                { name: 'dashboard', module: dashboard, condition: isDashboardPage }, // Only on dashboard
+                { name: 'dataTables', module: dataTables, condition: isDashboardPage }, // Only on dashboard
+                { name: 'performance', module: performance, condition: true }, // Always init
+                { name: 'sessionManager', module: sessionManager, condition: !isLoginPage } // Skip on login page
+            ];
+            
+            modules.forEach(({ name, module, condition }) => {
+                if (condition) {
+                    try {
+                        console.log(`RepresentativePanel: Initializing ${name}...`);
+                        module.init();
+                        console.log(`RepresentativePanel: ${name} initialized successfully`);
+                    } catch (error) {
+                        console.error(`RepresentativePanel: Error initializing ${name}:`, error);
+                    }
+                } else {
+                    console.log(`RepresentativePanel: Skipping ${name} - condition not met`);
+                }
+            });
 
             // Custom initialization based on page
             const currentView = new URLSearchParams(window.location.search).get('view') || 'dashboard';
@@ -1419,5 +1647,7 @@
     RepresentativePanel.navigation = navigation;
     RepresentativePanel.dataTables = dataTables;
     RepresentativePanel.performance = performance;
+    RepresentativePanel.sessionManager = sessionManager;
+    RepresentativePanel.loginHandler = loginHandler;
 
 })(jQuery);

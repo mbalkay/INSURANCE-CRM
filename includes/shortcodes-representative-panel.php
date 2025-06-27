@@ -118,7 +118,7 @@ function insurance_crm_representative_login_shortcode() {
                 </div>
 
                 <div class="form-group">
-                    <button type="submit" name="insurance-crm-login" class="login-button" id="wp-submit">
+                    <button type="submit" class="login-button" id="wp-submit">
                         <span class="button-text">Giriş Yap</span>
                         <span class="button-loading" style="display:none;">
                             <i class="dashicons dashicons-update spin"></i>
@@ -255,6 +255,18 @@ function insurance_crm_representative_login_shortcode() {
         text-align: center;
         animation: shake 0.3s ease;
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
+    }
+
+    .login-success {
+        background: #f0f9ff;
+        color: #059669;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #059669;
+        font-size: 14px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(5, 150, 105, 0.1);
     }
 
     @keyframes shake {
@@ -483,35 +495,8 @@ function insurance_crm_representative_login_shortcode() {
                 $icon.removeClass('dashicons-hidden').addClass('dashicons-visibility');
             }
         });
-
-        // Form gönderimi
-        $("#loginform").on("submit", function(e) {
-            e.preventDefault();
-            const $button = $("#wp-submit");
-            $button.addClass('loading').prop("disabled", true);
-            $(".login-loading").show();
-            $(".login-error").remove();
-
-            $.ajax({
-                url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                type: 'POST',
-                data: $(this).serialize() + '&action=insurance_crm_login',
-                success: function(response) {
-                    if (response.success) {
-                        window.location.href = response.data.redirect;
-                    } else {
-                        $(".login-header").after('<div class="login-error">' + response.data.message + '</div>');
-                        $button.removeClass('loading').prop("disabled", false);
-                        $(".login-loading").hide();
-                    }
-                },
-                error: function() {
-                    $(".login-header").after('<div class="login-error">Bir hata oluştu, lütfen tekrar deneyin.</div>');
-                    $button.removeClass('loading').prop("disabled", false);
-                    $(".login-loading").hide();
-                }
-            });
-        });
+        
+        // Note: Login form submission is handled by representative-panel.js
     });
     </script>
     <?php
@@ -543,47 +528,7 @@ function hex2rgb($hex) {
     );
 }
 
-// AJAX Login Handler - Düzeltilmiş versiyon
-add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_handle_login');
-function insurance_crm_handle_login() {
-    check_ajax_referer('insurance_crm_login', 'insurance_crm_login_nonce');
-
-    $credentials = array(
-        'user_login'    => sanitize_text_field($_POST['username']),
-        'user_password' => $_POST['password'],
-        'remember'      => isset($_POST['remember']) && $_POST['remember'] === 'on' ? true : false
-    );
-
-    $user = wp_signon($credentials, false);
-
-    if (is_wp_error($user)) {
-        error_log('Insurance CRM Login Error: ' . $user->get_error_message());
-        wp_send_json_error(array('message' => $user->get_error_message()));
-    } else {
-        if (in_array('administrator', (array)$user->roles)) {
-            wp_send_json_success(array('redirect' => home_url('/boss-panel/')));
-        } elseif (in_array('insurance_representative', (array)$user->roles)) {
-            global $wpdb;
-            // SQL sorgusunu düzelt - hata burada olabilir
-            $status = $wpdb->get_var($wpdb->prepare(
-                "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
-                $user->ID
-            ));
-
-            error_log('Insurance CRM Login: User status for ID ' . $user->ID . ' is: ' . ($status ? $status : 'not found'));
-
-            if ($status === 'active') {
-                wp_send_json_success(array('redirect' => home_url('/temsilci-paneli/')));
-            } else {
-                wp_send_json_error(array('message' => 'Hesabınız pasif durumda. Lütfen yöneticiniz ile iletişime geçin.'));
-            }
-        } else {
-            wp_send_json_error(array('message' => 'Bu kullanıcı müşteri temsilcisi veya yönetici değil.'));
-        }
-    }
-
-    wp_die();
-}
+// Duplicate AJAX handler removed - using main handler in insurance-crm.php
 
 // Shortcode'ları kaydet
 add_shortcode('temsilci_dashboard', 'insurance_crm_representative_dashboard_shortcode');
@@ -642,6 +587,27 @@ function insurance_crm_rep_panel_assets() {
     
     if (is_page('temsilci-paneli')) {
         wp_enqueue_script('chartjs', 'https://cdn.jsdelivr.net/npm/chart.js', array('jquery'), '3.9.1', true);
+        
+        // Representative panel JS for session management
+        wp_enqueue_script('insurance-crm-representative-panel', plugin_dir_url(dirname(__FILE__)) . 'assets/js/representative-panel.js', array('jquery'), '2.0.0', true);
+        
+        // AJAX parametrelerini JavaScript'e gönder
+        wp_localize_script('insurance-crm-representative-panel', 'representativePanel', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('representative_panel_nonce')
+        ));
+    }
+
+    // Login sayfası için JavaScript ve CSS
+    if (is_page('temsilci-girisi')) {
+        // Representative panel JS için nonce ekleme
+        wp_enqueue_script('insurance-crm-representative-panel', plugin_dir_url(dirname(__FILE__)) . 'assets/js/representative-panel.js', array('jquery'), '2.0.0', true);
+        
+        // AJAX parametrelerini JavaScript'e gönder
+        wp_localize_script('insurance-crm-representative-panel', 'representativePanel', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('representative_panel_nonce')
+        ));
     }
 
     // Google Fonts - Inter

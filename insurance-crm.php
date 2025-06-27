@@ -10,9 +10,9 @@
  * Plugin Name: Insurance CRM
  * Plugin URI: https://github.com/anadolubirlik/insurance-crm
  * Description: Sigorta acenteleri için müşteri, poliçe ve görev yönetim sistemi.
- * Version: 1.8.2
+ * Version: 1.8.3
  * Pagename: insurance-crm.php
- * Page Version: 1.8.2
+ * Page Version: 1.8.3
  * Author: Mehmet BALKAY | Anadolu Birlik
  * Author URI: https://www.balkay.net
  */
@@ -2423,6 +2423,7 @@ add_action('init', 'insurance_crm_add_shortcodes');
  * Login işlemini yönet
  */
 function insurance_crm_process_login() {
+    // Only process if this is a traditional form submission with the specific trigger field
     if (isset($_POST['insurance_crm_login']) && isset($_POST['insurance_crm_login_nonce'])) {
         if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
             error_log('Insurance CRM Login Error: Invalid nonce');
@@ -2481,6 +2482,116 @@ function insurance_crm_process_login() {
     }
 }
 add_action('init', 'insurance_crm_process_login', 5);
+
+/**
+ * AJAX Login Handler - Simplified and reliable
+ */
+function insurance_crm_ajax_login() {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'] ?? '', 'insurance_crm_login')) {
+        wp_send_json_error(array(
+            'message' => 'Güvenlik doğrulaması başarısız. Sayfayı yenileyin ve tekrar deneyin.'
+        ));
+    }
+    
+    $username = sanitize_user($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $remember = isset($_POST['remember']) ? (bool)$_POST['remember'] : false;
+    
+    if (empty($username) || empty($password)) {
+        wp_send_json_error(array(
+            'message' => 'Kullanıcı adı ve şifre gereklidir.'
+        ));
+    }
+    
+    // Convert email to username if needed
+    if (is_email($username)) {
+        $user_data = get_user_by('email', $username);
+        if ($user_data) {
+            $username = $user_data->user_login;
+        }
+    }
+    
+    $creds = array(
+        'user_login' => $username,
+        'user_password' => $password,
+        'remember' => $remember
+    );
+    
+    $user = wp_signon($creds, is_ssl());
+    
+    if (is_wp_error($user)) {
+        wp_send_json_error(array(
+            'message' => 'Kullanıcı adı veya şifre hatalı.'
+        ));
+    }
+    
+    // Determine redirect URL based on user role
+    $redirect_url = '';
+    
+    if (in_array('administrator', (array)$user->roles)) {
+        // Admin users go to WordPress backend
+        $redirect_url = admin_url();
+        error_log('Insurance CRM AJAX Login: Admin user redirected to backend');
+    } elseif (in_array('insurance_representative', (array)$user->roles)) {
+        // Check representative status
+        global $wpdb;
+        $rep_status = $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
+            $user->ID
+        ));
+        
+        if ($rep_status !== 'active') {
+            wp_logout();
+            wp_send_json_error(array(
+                'message' => 'Hesabınız aktif değil. Lütfen yöneticinizle iletişime geçin.'
+            ));
+        }
+        
+        // Representative users go to dashboard
+        $redirect_url = home_url('/temsilci-paneli/');
+        error_log('Insurance CRM AJAX Login: Representative user redirected to dashboard');
+    } else {
+        // Other users are not allowed
+        wp_logout();
+        wp_send_json_error(array(
+            'message' => 'Bu hesap sisteme erişim yetkisine sahip değil.'
+        ));
+    }
+    
+    wp_send_json_success(array(
+        'message' => 'Giriş başarılı...',
+        'redirect' => $redirect_url
+    ));
+}
+add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');
+add_action('wp_ajax_insurance_crm_login', 'insurance_crm_ajax_login');
+
+/**
+ * AJAX Auto Logout Handler
+ */
+function insurance_crm_auto_logout() {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
+        wp_send_json_error(array(
+            'message' => 'Güvenlik doğrulaması başarısız.'
+        ));
+    }
+    
+    // Log the auto logout
+    if (is_user_logged_in()) {
+        $user = wp_get_current_user();
+        error_log('Insurance CRM Auto Logout: User ID ' . $user->ID . ' automatically logged out due to inactivity');
+    }
+    
+    // Perform logout
+    wp_logout();
+    
+    wp_send_json_success(array(
+        'message' => 'Oturum başarıyla kapatıldı.'
+    ));
+}
+add_action('wp_ajax_insurance_crm_auto_logout', 'insurance_crm_auto_logout');
 
 // Admin notice function removed per user request
 
