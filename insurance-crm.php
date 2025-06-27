@@ -2484,31 +2484,11 @@ function insurance_crm_process_login() {
 add_action('init', 'insurance_crm_process_login', 5);
 
 /**
- * AJAX Login Handler for modern login experience
+ * AJAX Login Handler - Simplified and reliable
  */
 function insurance_crm_ajax_login() {
-    error_log('Insurance CRM AJAX Login: Request received');
-    error_log('Insurance CRM AJAX Login: POST data (without password): ' . print_r(array_merge($_POST, ['password' => '[HIDDEN]']), true));
-    
-    // More flexible nonce verification - check multiple possible nonce fields
-    $nonce_valid = false;
-    
-    // Check form nonce
-    if (!empty($_POST['insurance_crm_login_nonce']) && 
-        wp_verify_nonce($_POST['insurance_crm_login_nonce'], 'insurance_crm_login')) {
-        $nonce_valid = true;
-        error_log('Insurance CRM AJAX Login: Form nonce valid');
-    }
-    
-    // Check AJAX nonce
-    if (!$nonce_valid && !empty($_POST['nonce']) && 
-        wp_verify_nonce($_POST['nonce'], 'representative_panel_nonce')) {
-        $nonce_valid = true;
-        error_log('Insurance CRM AJAX Login: AJAX nonce valid');
-    }
-    
-    if (!$nonce_valid) {
-        error_log('Insurance CRM AJAX Login: Nonce verification failed');
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['insurance_crm_login_nonce'] ?? '', 'insurance_crm_login')) {
         wp_send_json_error(array(
             'message' => 'Güvenlik doğrulaması başarısız. Sayfayı yenileyin ve tekrar deneyin.'
         ));
@@ -2519,7 +2499,6 @@ function insurance_crm_ajax_login() {
     $remember = isset($_POST['remember']) ? (bool)$_POST['remember'] : false;
     
     if (empty($username) || empty($password)) {
-        error_log('Insurance CRM AJAX Login: Empty username or password');
         wp_send_json_error(array(
             'message' => 'Kullanıcı adı ve şifre gereklidir.'
         ));
@@ -2530,7 +2509,6 @@ function insurance_crm_ajax_login() {
         $user_data = get_user_by('email', $username);
         if ($user_data) {
             $username = $user_data->user_login;
-            error_log('Insurance CRM AJAX Login: Email converted to username');
         }
     }
     
@@ -2543,78 +2521,47 @@ function insurance_crm_ajax_login() {
     $user = wp_signon($creds, is_ssl());
     
     if (is_wp_error($user)) {
-        error_log('Insurance CRM AJAX Login Error: ' . $user->get_error_message());
         wp_send_json_error(array(
-            'message' => 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.'
+            'message' => 'Kullanıcı adı veya şifre hatalı.'
         ));
     }
     
-    // Check if user is a representative
-    if (!in_array('insurance_representative', (array)$user->roles)) {
-        wp_logout();
-        error_log('Insurance CRM AJAX Login Error: User is not a representative');
-        wp_send_json_error(array(
-            'message' => 'Bu hesap temsilci paneline erişim yetkisine sahip değil.'
+    // Determine redirect URL based on user role
+    $redirect_url = '';
+    
+    if (in_array('administrator', (array)$user->roles)) {
+        // Admin users go to WordPress backend
+        $redirect_url = admin_url();
+        error_log('Insurance CRM AJAX Login: Admin user redirected to backend');
+    } elseif (in_array('insurance_representative', (array)$user->roles)) {
+        // Check representative status
+        global $wpdb;
+        $rep_status = $wpdb->get_var($wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
+            $user->ID
         ));
-    }
-    
-    // Check representative status
-    global $wpdb;
-    $rep_status = $wpdb->get_var($wpdb->prepare(
-        "SELECT status FROM {$wpdb->prefix}insurance_crm_representatives WHERE user_id = %d",
-        $user->ID
-    ));
-    
-    if ($rep_status !== 'active') {
-        wp_logout();
-        error_log('Insurance CRM AJAX Login Error: Representative status is not active');
-        wp_send_json_error(array(
-            'message' => 'Hesabınız aktif değil. Lütfen yöneticinizle iletişime geçin.'
-        ));
-    }
-    
-    error_log('Insurance CRM AJAX Login Success: User ID ' . $user->ID);
-    
-    // Get the dashboard page URL with multiple robust fallback methods
-    $dashboard_url = '';
-    
-    // Method 1: Check if temsilci-paneli page exists
-    $dashboard_page = get_page_by_path('temsilci-paneli');
-    if ($dashboard_page) {
-        $dashboard_url = get_permalink($dashboard_page->ID);
-        error_log('Insurance CRM AJAX Login: Dashboard URL from page: ' . $dashboard_url);
-    }
-    
-    // Method 2: Try using the shortcode URL approach
-    if (empty($dashboard_url) || !filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
-        $dashboard_url = home_url('/temsilci-paneli/');
-        error_log('Insurance CRM AJAX Login: Dashboard URL from home_url: ' . $dashboard_url);
-    }
-    
-    // Method 3: Try site_url approach
-    if (!filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
-        $dashboard_url = site_url('/temsilci-paneli/');
-        error_log('Insurance CRM AJAX Login: Dashboard URL from site_url: ' . $dashboard_url);
-    }
-    
-    // Method 4: Add query parameter for forcing dashboard display
-    if (strpos($dashboard_url, '?') !== false) {
-        $dashboard_url .= '&force_dashboard=1';
+        
+        if ($rep_status !== 'active') {
+            wp_logout();
+            wp_send_json_error(array(
+                'message' => 'Hesabınız aktif değil. Lütfen yöneticinizle iletişime geçin.'
+            ));
+        }
+        
+        // Representative users go to dashboard
+        $redirect_url = home_url('/temsilci-paneli/');
+        error_log('Insurance CRM AJAX Login: Representative user redirected to dashboard');
     } else {
-        $dashboard_url .= '?force_dashboard=1';
+        // Other users are not allowed
+        wp_logout();
+        wp_send_json_error(array(
+            'message' => 'Bu hesap sisteme erişim yetkisine sahip değil.'
+        ));
     }
-    
-    error_log('Insurance CRM AJAX Login: Final redirect URL: ' . $dashboard_url);
-    
-    // Force session write to ensure user is logged in before redirect
-    wp_cache_flush();
     
     wp_send_json_success(array(
-        'message' => 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...',
-        'redirect' => $dashboard_url,
-        'user_id' => $user->ID,
-        'user_name' => $user->display_name,
-        'timestamp' => time() // Add timestamp to prevent caching issues
+        'message' => 'Giriş başarılı...',
+        'redirect' => $redirect_url
     ));
 }
 add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');

@@ -1462,49 +1462,37 @@
     };
 
     // AJAX Login Handler
+    // AJAX Login Handler - Simplified
     const loginHandler = {
         init() {
-            console.log('LoginHandler: Initializing...');
             this.bindEvents();
         },
         
         bindEvents() {
-            console.log('LoginHandler: Binding events...');
-            // Handle AJAX login form submission - target both class and ID
             $(document).on('submit', '.insurance-crm-login-form, #loginform', this.handleLogin.bind(this));
-            console.log('LoginHandler: Events bound to form selectors');
         },
         
         handleLogin(e) {
-            console.log('LoginHandler: Form submission detected');
             e.preventDefault();
-            e.stopPropagation(); // Prevent any other handlers from interfering
             
             const $form = $(e.target);
-            console.log('LoginHandler: Form element found', $form.length);
-            
             const $submitBtn = $form.find('input[type="submit"], button[type="submit"]');
             const $username = $form.find('input[name="username"]');
             const $password = $form.find('input[name="password"]');
             const $remember = $form.find('input[name="remember"]');
             const $loginNonce = $form.find('input[name="insurance_crm_login_nonce"]');
             
-            console.log('LoginHandler: Form elements found - submit:', $submitBtn.length, 'username:', $username.length, 'password:', $password.length);
-            
             // Clear any previous messages
             $form.find('.login-error, .login-success').remove();
             
             // Validate inputs
             if (!$username.val().trim() || !$password.val().trim()) {
-                console.log('LoginHandler: Validation failed - empty fields');
                 this.showLoginMessage($form, 'Kullanıcı adı ve şifre gereklidir.', 'error');
                 return;
             }
             
-            // Disable submit button and show loading state
-            $submitBtn.prop('disabled', true).addClass('logging-in');
-            
-            // Update button text if it's a button element
+            // Show loading state
+            $submitBtn.prop('disabled', true);
             if ($submitBtn.is('button')) {
                 $submitBtn.find('.button-text').hide();
                 $submitBtn.find('.button-loading').show();
@@ -1512,105 +1500,38 @@
                 $submitBtn.val('Giriş yapılıyor...');
             }
             
-            // Show loading indicator
-            $form.find('.login-loading').show();
-            
-            // Prepare data - include both nonce types for compatibility
-            const ajaxData = {
-                action: 'insurance_crm_login',
-                username: $username.val(),
-                password: $password.val(),
-                remember: $remember.is(':checked')
-            };
-            
-            // Add form nonce if available
-            if ($loginNonce.length && $loginNonce.val()) {
-                ajaxData.insurance_crm_login_nonce = $loginNonce.val();
-                console.log('LoginHandler: Form nonce added');
-            }
-            
-            // Add config nonce if available
-            if (config.nonce) {
-                ajaxData.nonce = config.nonce;
-                console.log('LoginHandler: Config nonce added');
-            }
-            
-            console.log('LoginHandler: AJAX URL:', config.ajaxUrl);
-            console.log('LoginHandler: AJAX Data (without password):', {...ajaxData, password: '[HIDDEN]'});
-            
+            // Perform AJAX login
             $.ajax({
                 url: config.ajaxUrl,
                 type: 'POST',
-                data: ajaxData,
-                dataType: 'json',
-                timeout: 30000, // 30 second timeout
+                data: {
+                    action: 'insurance_crm_login',
+                    username: $username.val(),
+                    password: $password.val(),
+                    remember: $remember.is(':checked'),
+                    insurance_crm_login_nonce: $loginNonce.val()
+                },
                 success: (response) => {
-                    console.log('LoginHandler: AJAX Success:', response);
-                    
                     if (response.success && response.data && response.data.redirect) {
-                        // Show success message
-                        this.showLoginMessage($form, response.data.message || 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...', 'success');
+                        this.showLoginMessage($form, response.data.message || 'Giriş başarılı...', 'success');
                         
-                        // Hide loading but keep button disabled during redirect
-                        $form.find('.login-loading').hide();
-                        
-                        const redirectUrl = response.data.redirect;
-                        console.log('LoginHandler: Redirecting to:', redirectUrl);
-                        
-                        // Multiple redirect approaches for better reliability
-                        this.performReliableRedirect(redirectUrl);
+                        // Simple redirect after short delay
+                        setTimeout(() => {
+                            window.location.href = response.data.redirect;
+                        }, 1000);
                         
                     } else {
-                        console.error('LoginHandler: Invalid success response:', response);
-                        // Handle invalid success response as error
-                        let errorMessage = 'Giriş işlemi başarısız oldu.';
-                        if (response.data && response.data.message) {
-                            errorMessage = response.data.message;
-                        } else if (response.message) {
-                            errorMessage = response.message;
-                        }
-                        
-                        this.showLoginMessage($form, errorMessage, 'error');
-                        this.resetLoginForm($form, $submitBtn);
+                        this.handleLoginError($form, $submitBtn, response.data?.message || 'Giriş işlemi başarısız.');
                     }
                 },
-                error: (xhr, status, error) => {
-                    console.error('LoginHandler: AJAX Error:', {xhr, status, error});
-                    console.error('LoginHandler: Response Text:', xhr.responseText);
+                error: (xhr) => {
+                    let errorMessage = 'Kullanıcı adı veya şifre hatalı.';
                     
-                    let errorMessage = 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
-                    
-                    // Check for server error response first
-                    if (xhr.responseJSON && !xhr.responseJSON.success) {
-                        if (xhr.responseJSON.data && xhr.responseJSON.data.message) {
-                            errorMessage = xhr.responseJSON.data.message;
-                        }
-                    } 
-                    // Handle network/connection errors
-                    else if (status === 'timeout') {
-                        errorMessage = 'İstek zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
-                    } else if (xhr.status === 0) {
-                        errorMessage = 'İnternet bağlantınızı kontrol edin ve tekrar deneyin.';
-                    } else if (xhr.status === 403) {
-                        errorMessage = 'Güvenlik doğrulaması başarısız. Sayfayı yenileyin ve tekrar deneyin.';
-                    } else if (xhr.status >= 500) {
-                        errorMessage = 'Sunucu hatası oluştu. Lütfen bir süre sonra tekrar deneyin.';
-                    }
-                    // Try to parse response text if no JSON response
-                    else if (xhr.responseText) {
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            if (response.data && response.data.message) {
-                                errorMessage = response.data.message;
-                            }
-                        } catch (e) {
-                            // Keep default message if parsing fails
-                            console.log('LoginHandler: Could not parse response text');
-                        }
+                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        errorMessage = xhr.responseJSON.data.message;
                     }
                     
-                    this.showLoginMessage($form, errorMessage, 'error');
-                    this.resetLoginForm($form, $submitBtn);
+                    this.handleLoginError($form, $submitBtn, errorMessage);
                 }
             });
         },
@@ -1625,74 +1546,18 @@
             
             // Add message after login header
             $form.find('.login-header').after($message);
-            
-            // Scroll message into view if needed
-            $message[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         },
         
-        resetLoginForm($form, $submitBtn) {
+        handleLoginError($form, $submitBtn, message) {
+            this.showLoginMessage($form, message, 'error');
+            
             // Reset button state
-            $submitBtn.prop('disabled', false).removeClass('logging-in');
+            $submitBtn.prop('disabled', false);
             if ($submitBtn.is('button')) {
                 $submitBtn.find('.button-text').show();
                 $submitBtn.find('.button-loading').hide();
             } else {
                 $submitBtn.val('Giriş Yap');
-            }
-            $form.find('.login-loading').hide();
-        },
-        
-        performReliableRedirect(redirectUrl) {
-            console.log('LoginHandler: Starting reliable redirect to:', redirectUrl);
-            
-            // Method 1: Immediate redirect attempt
-            setTimeout(() => {
-                console.log('LoginHandler: Attempting immediate redirect...');
-                try {
-                    window.location.href = redirectUrl;
-                } catch (error) {
-                    console.error('LoginHandler: Immediate redirect failed:', error);
-                    this.attemptAlternativeRedirect(redirectUrl);
-                }
-            }, 800);
-            
-            // Method 2: Fallback after 3 seconds
-            setTimeout(() => {
-                console.log('LoginHandler: Attempting fallback redirect...');
-                this.attemptAlternativeRedirect(redirectUrl);
-            }, 3000);
-        },
-        
-        attemptAlternativeRedirect(redirectUrl) {
-            console.log('LoginHandler: Attempting alternative redirect methods...');
-            
-            // Try window.location.replace
-            try {
-                window.location.replace(redirectUrl);
-                return;
-            } catch (error) {
-                console.error('LoginHandler: location.replace failed:', error);
-            }
-            
-            // Try form submission approach
-            try {
-                const form = document.createElement('form');
-                form.method = 'GET';
-                form.action = redirectUrl;
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            } catch (error) {
-                console.error('LoginHandler: Form submission redirect failed:', error);
-            }
-            
-            // Final fallback - page reload with hash
-            try {
-                const url = new URL(redirectUrl);
-                window.location.hash = '#dashboard';
-                window.location.reload();
-            } catch (error) {
-                console.error('LoginHandler: All redirect methods failed:', error);
             }
         }
     };
