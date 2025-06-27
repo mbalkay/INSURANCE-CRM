@@ -1565,7 +1565,6 @@
                 }
             });
         }
-        }
     };
 
     // Initialize everything when DOM is ready
