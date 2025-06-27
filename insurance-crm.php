@@ -2553,7 +2553,7 @@ function insurance_crm_ajax_login() {
     
     error_log('Insurance CRM AJAX Login Success: User ID ' . $user->ID);
     
-    // Get the dashboard page URL - check multiple possible URLs
+    // Get the dashboard page URL - ensure it's a full absolute URL
     $dashboard_url = home_url('/temsilci-paneli/');
     
     // Alternative: check if page exists and get its URL
@@ -2562,11 +2562,19 @@ function insurance_crm_ajax_login() {
         $dashboard_url = get_permalink($dashboard_page->ID);
     }
     
+    // Ensure URL is absolute
+    if (!filter_var($dashboard_url, FILTER_VALIDATE_URL)) {
+        $dashboard_url = home_url('/temsilci-paneli/');
+    }
+    
+    error_log('Insurance CRM AJAX Login: Redirecting to ' . $dashboard_url);
+    
     wp_send_json_success(array(
         'message' => 'Giriş başarılı. Dashboard\'a yönlendiriliyorsunuz...',
         'redirect' => $dashboard_url,
         'user_id' => $user->ID,
-        'user_name' => $user->display_name
+        'user_name' => $user->display_name,
+        'redirect_delay' => 1500 // Add delay hint for client
     ));
 }
 add_action('wp_ajax_nopriv_insurance_crm_login', 'insurance_crm_ajax_login');
